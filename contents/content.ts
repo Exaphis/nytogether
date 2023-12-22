@@ -1,16 +1,19 @@
 import assert from "assert"
 import type { PlasmoCSConfig } from "plasmo"
+import { setupSync } from "~sync"
+import { findReact, findStore } from "~utils"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.nytimes.com/crosswords/game/*"],
-  all_frames: true
+  all_frames: true,
+  world: "MAIN"  // required for some reason for findReact to work properly
 }
 
 let store = null
 
 // Called when store is set to a non-null value.
 function initialize() {
-  assert(store !== null)
+  assert(store !== null && store !== undefined)
   console.log("store initialized")
   console.log(store)
 
@@ -38,6 +41,11 @@ function initialize() {
       })
     }
   })
+
+  const room = setupSync()
+  console.log("room initialized")
+  room.onPeerJoin(peerId => console.log(`${peerId} joined`))
+  room.onPeerLeave(peerId => console.log(`${peerId} left`))
 }
 
 // callback using mutation observer
@@ -46,45 +54,10 @@ const callback = (mutationsList: MutationRecord[]) => {
     return
   }
 
-  // https://stackoverflow.com/a/39165137/6686559
-  function findReact(dom, traverseUp = 0) {
-    const key = Object.keys(dom).find((key) => {
-      return (
-        key.startsWith("__reactFiber$") || // react 17+
-        key.startsWith("__reactInternalInstance$")
-      ) // react <17
-    })
-    const domFiber = dom[key]
-    if (domFiber == null) return null
-
-    // react <16
-    if (domFiber._currentElement) {
-      let compFiber = domFiber._currentElement._owner
-      for (let i = 0; i < traverseUp; i++) {
-        compFiber = compFiber._currentElement._owner
-      }
-      return compFiber._instance
-    }
-
-    // react 16+
-    const GetCompFiber = (fiber) => {
-      let parentFiber = fiber.return
-      while (typeof parentFiber.type == "string") {
-        parentFiber = parentFiber.return
-      }
-      return parentFiber
-    }
-    let compFiber = GetCompFiber(domFiber)
-    for (let i = 0; i < traverseUp; i++) {
-      compFiber = GetCompFiber(compFiber)
-    }
-    return compFiber
-  }
-
-  // first, get all cell's contents
-  const parent = document.querySelector("g[data-group=cells]")
-  const reactElem = findReact(parent)
-  store = reactElem?.memoizedState.next.memoizedState[1][0]
+  const parent = document.querySelector("main")
+  const reactNode = findReact(parent)
+  const state = reactNode?.memoizedState
+  store = findStore(state)
   initialize()
 }
 
