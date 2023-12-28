@@ -1,9 +1,10 @@
 {
   "name": "nytogether",
-  "displayName": "Nytogether",
+  "displayName": "NYTogether",
   "version": "0.0.1",
   "description": "Make your NYT crosswords multiplayer.",
   "author": "Kevin Wu <kevin@kevinniuwu.com>",
+  "license": "MIT",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
@@ -11,7 +12,6 @@
   },
   "dependencies": {
     "lodash": "^4.17.21",
-    "nanoid": "^5.0.4",
     "plasmo": "0.84.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",

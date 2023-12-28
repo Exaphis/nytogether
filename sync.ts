@@ -2,34 +2,22 @@ import assert from "assert"
 import { isEqual } from "lodash"
 import { joinRoom } from "trystero"
 
-// Interface:
-// The sync module is responsible for syncing the state of the game.
-// 1. When user joins - send them the current state of the game
-// 2. When user sets selection - broadcast to all other users
-// 3. When user sets cell - broadcast to all other users
-
-// initial state will be received from the first user that responds.
-
-interface ISyncParams {
-  state: any
-  onInitialize: (cells: Cell[]) => void
-  onSetSelection: (
-    peerId: string,
-    prevCellId: number | null,
-    cellId: number | null
-  ) => void
-  onSetCell: (cellId: number, value: Cell) => void
-  roomName: string
-}
-
 export interface Cell {
   guess: string
   penciled: boolean
 }
 
-let cells: Cell[] | null = null
+// Canonical sync cells
+let cells: Cell[]
+// Current user's selection.
 let selection: number | null = null
+// Map of peer id to their selection.
+// TODO: handle multiple peers on the same cell
 let peerSelections: Map<string, number> = new Map()
+// Whether or not we are currently syncing the store state.
+// If so, we want to ignore all store updates.
+let syncing = false
+
 let globalSendSelection: any = null
 let globalSendCell: any = null
 
@@ -40,9 +28,10 @@ export function nytCellToCell(nytCell: any): Cell {
   }
 }
 
-// TODO: debounce selection updates?
 export function updateStoreState(state: any) {
-  assert(cells !== null)
+  if (syncing) {
+    return
+  }
 
   let newSelection = state.selection.cell
   if (newSelection !== selection) {
@@ -65,17 +54,36 @@ export function updateStoreState(state: any) {
   }
 }
 
-export function setupSync(params: ISyncParams) {
-  cells = params.state.cells.map(nytCellToCell)
-  selection = params.state.selection.cell
-  console.log("setting up sync")
-  console.log(cells)
-  console.log(selection)
+let currRoomName = null
+let currRoom = null
+
+export function setupSync(
+  state: any,
+  onSetSelection: (
+    prevCellId: number | null,
+    cellId: number | null
+  ) => Promise<void>,
+  onSetCell: (cellId: number, value: Cell) => Promise<void>,
+  roomName: string
+) {
+  // Make the function idempotent
+  if (roomName === currRoomName) {
+    return
+  }
+  currRoom?.leave()
+  currRoomName = roomName
+
+  // Initialize the room
+  cells = state.cells.map(nytCellToCell)
+  selection = state.selection.cell
+
+  console.log("setting up sync, room name: %s", roomName)
 
   const config = { appId: "nytogether" }
-  const room = joinRoom(config, params.roomName)
+  currRoom = joinRoom(config, roomName)
 
-  const [sendInitialBoard, receiveInitialBoard] = room.makeAction("initialize")
+  const [sendInitialBoard, receiveInitialBoard] =
+    currRoom.makeAction("initialize")
   receiveInitialBoard((data: Cell[]) => {
     console.log("received initial board")
     console.log(data)
@@ -84,44 +92,53 @@ export function setupSync(params: ISyncParams) {
     for (const cell of cells!) {
       if (cell.guess !== "") {
         allEmpty = false
-        break;
+        break
       }
     }
 
     if (allEmpty) {
-      params.onInitialize(data)
-    }
-    else {
+      syncing = true
+      for (let i = 0; i < data!.length; i++) {
+        if (!isEqual(cells[i], data[i])) {
+          onSetCell(i, data[i])
+          cells[i] = data[i]
+        }
+      }
+      syncing = false
+    } else {
       console.error("not initializing, cells are not empty")
     }
   })
 
-  const [sendSelection, receiveSelection] = room.makeAction("selection")
+  const [sendSelection, receiveSelection] = currRoom.makeAction("selection")
   receiveSelection((data: number, peerId: string) => {
     if (peerSelections.get(peerId) === data) {
       return
     }
     const prevPeerSelection = peerSelections.get(peerId) ?? null
     console.log(peerSelections)
-    params.onSetSelection(peerId, prevPeerSelection, data)
+    onSetSelection(prevPeerSelection, data)
     peerSelections.set(peerId, data)
   })
 
-  const [sendCell, receiveCell] = room.makeAction("cell")
+  const [sendCell, receiveCell] = currRoom.makeAction("cell")
   receiveCell((data: any, _peerId) => {
-    params.onSetCell(data.cellId, data.value)
+    syncing = true
+    onSetCell(data.cellId, data.value)
+    cells[data.cellId] = data.value
+    syncing = false
   })
 
-  room.onPeerJoin((_peerId: string) => {
+  currRoom.onPeerJoin((_peerId: string) => {
     console.log("peer id w/ id %s joined, sending board data", _peerId)
     assert(cells !== null)
     sendInitialBoard(cells)
     sendSelection(selection)
   })
 
-  room.onPeerLeave((peerId: string) => {
+  currRoom.onPeerLeave((peerId: string) => {
     console.log("peer id w/ id %s left", peerId)
-    params.onSetSelection(peerId, peerSelections.get(peerId) ?? null, null)
+    onSetSelection(peerSelections.get(peerId) ?? null, null)
     peerSelections.delete(peerId)
   })
 
