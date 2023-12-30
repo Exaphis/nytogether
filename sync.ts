@@ -1,6 +1,6 @@
 import assert from "assert"
 import { isEqual } from "lodash"
-import { joinRoom } from "trystero"
+import { joinRoom, type Room } from "trystero"
 
 export interface Cell {
   guess: string
@@ -37,9 +37,11 @@ export function updateStoreState(state: any) {
   if (newSelection !== selection) {
     selection = newSelection
 
-    globalSendSelection(state.selection.cell).then(() => {
-      console.log("sent selection")
-    })
+    if (globalSendSelection !== null) {
+      globalSendSelection(state.selection.cell).then(() => {
+        console.log("sent selection")
+      })
+    }
   }
 
   for (let i = 0; i < cells.length; i++) {
@@ -47,15 +49,17 @@ export function updateStoreState(state: any) {
     if (!isEqual(newCell, cells[i])) {
       cells[i] = newCell
 
-      globalSendCell({ cellId: i, value: newCell }).then(() => {
-        console.log("sent cell")
-      })
+      if (globalSendCell !== null) {
+        globalSendCell({ cellId: i, value: newCell }).then(() => {
+          console.log("sent cell")
+        })
+      }
     }
   }
 }
 
-let currRoomName = null
-let currRoom = null
+let currRoomName: string | null = null
+let currRoom: Room | null = null
 
 export function setupSync(
   state: any,
@@ -144,4 +148,20 @@ export function setupSync(
 
   globalSendSelection = sendSelection
   globalSendCell = sendCell
+}
+
+interface SyncState {
+  roomName: string
+  peers: number
+}
+
+export function getSyncState(): SyncState | null {
+  if (currRoom === null) {
+    return null
+  }
+
+  return {
+    roomName: currRoomName!,
+    peers: Object.keys(currRoom.getPeers()).length
+  }
 }
