@@ -1,6 +1,7 @@
 import assert from "assert"
 import { isEqual } from "lodash"
 import { joinRoom, type Room } from "trystero"
+import { Storage } from "@plasmohq/storage"
 
 export interface Cell {
   guess: string
@@ -20,6 +21,9 @@ let syncing = false
 
 let globalSendSelection: any = null
 let globalSendCell: any = null
+
+const storage = new Storage()
+storage.set("joinedRoomName", null)
 
 export function nytCellToCell(nytCell: any): Cell {
   return {
@@ -75,7 +79,15 @@ export function setupSync(
     return
   }
   currRoom?.leave()
+
   currRoomName = roomName
+
+  let joinedRoomName = currRoomName
+  const expectedPrefix = `${state.gameData.filename}/`
+  if (joinedRoomName.startsWith(expectedPrefix)) {
+    joinedRoomName = joinedRoomName.slice(expectedPrefix.length)
+  }
+  storage.set("joinedRoomName", joinedRoomName)
 
   // Initialize the room
   cells = state.cells.map(nytCellToCell)
@@ -138,12 +150,16 @@ export function setupSync(
     assert(cells !== null)
     sendInitialBoard(cells)
     sendSelection(selection)
+
+    storage.set("numPeers", Object.keys(currRoom.getPeers()).length)
   })
 
   currRoom.onPeerLeave((peerId: string) => {
     console.log("peer id w/ id %s left", peerId)
     onSetSelection(peerSelections.get(peerId) ?? null, null)
     peerSelections.delete(peerId)
+
+    storage.set("numPeers", Object.keys(currRoom.getPeers()).length)
   })
 
   globalSendSelection = sendSelection

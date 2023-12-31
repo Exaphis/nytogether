@@ -14,16 +14,11 @@ const storage = new Storage()
 let currStoreState = null
 
 listen(async (req, res) => {
-  if (req.name === "nytogether-msg-joinGame") {
-    initialize(currStoreState)
+  if (req.name === "nytogether-msg-alive") {
+    res.send(true)
   }
-  else if (req.name === "nytogether-msg-getRoom") {
-    const syncState = getSyncState()
-    const expectedPrefix = `${currStoreState.gameData.filename}/`
-    if (!syncState.roomName.startsWith(expectedPrefix)) {
-      syncState.roomName = syncState.roomName.slice(expectedPrefix.length)
-    }
-    res.send(syncState)
+  else if (req.name === "nytogether-msg-joinGame") {
+    initialize(currStoreState)
   }
 })
 

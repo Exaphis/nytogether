@@ -13,31 +13,23 @@ function IndexPopup() {
     (v) => (v === undefined ? false : v)
   )
 
-  const [joinedRoom, setJoinedRoom] = useState(false)
-  const [numPeers, setNumPeers] = useState(0)
-
-  const updateState = useCallback(async () => {
-    const res = await sendToContentScript({ name: "nytogether-msg-getRoom" })
-    console.log(res)
-    if (res === null) {
-      setJoinedRoom(false)
-      return
-    }
-
-    const { roomName: currentRoomName, peers } = res
-    console.log(currentRoomName)
-    console.log(roomName)
-    setJoinedRoom(currentRoomName === roomName)
-    setNumPeers(peers)
-  }, [setJoinedRoom, setNumPeers, roomName])
+  const [isAlive, setIsAlive] = useState(false)
+  const [joinedRoomName] = useStorage("joinedRoomName")
+  console.log(joinedRoomName)
+  const [numPeers] = useStorage("numPeers", 0)
+  const joinedRoom = joinedRoomName === roomName
 
   useEffect(() => {
+    async function updateState() {
+      const res = await sendToContentScript({ name: "nytogether-msg-alive" })
+      setIsAlive(!!res)
+    }
     updateState()
-  }, [updateState])
+  }, [setIsAlive])
 
-  return (
-    <>
-      <h1>NYTogether</h1>
+  let contents = <p>Content script not found.</p>
+  if (isAlive) {
+    contents = <>
       <label>
         Room name:
         <input
@@ -57,12 +49,18 @@ function IndexPopup() {
       <button
         onClick={async () => {
           await sendToContentScript({ name: "nytogether-msg-joinGame" })
-          await updateState()
         }}
         disabled={joinedRoom}>
         Join room
       </button>
       {joinedRoom && <p>Connected peers: {numPeers}</p>}
+    </>
+  }
+
+  return (
+    <>
+      <h1>NYTogether</h1>
+      {contents}
     </>
   )
 }
