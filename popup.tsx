@@ -29,32 +29,34 @@ function IndexPopup() {
 
   let contents = <p>Content script not found.</p>
   if (isAlive) {
-    contents = <>
-      <label>
-        Room name:
-        <input
-          value={roomName}
-          onChange={(e) => setRoomName(e.target.value)}
-          style={{ fontFamily: "monospace" }}></input>
-      </label>
-      <label>
-        Join automatically:
-        <input
-          checked={joinAutomatically}
-          onChange={(e) => setJoinAutomatically(e.target.checked)}
-          type="checkbox"
-        />
-      </label>
-      <hr />
-      <button
-        onClick={async () => {
-          await sendToContentScript({ name: "nytogether-msg-joinGame" })
-        }}
-        disabled={joinedRoom}>
-        Join room
-      </button>
-      {joinedRoom && <p>Connected peers: {numPeers}</p>}
-    </>
+    contents = (
+      <>
+        <label>
+          Room name:
+          <input
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            style={{ fontFamily: "monospace" }}></input>
+        </label>
+        <label>
+          Join automatically:
+          <input
+            checked={joinAutomatically}
+            onChange={(e) => setJoinAutomatically(e.target.checked)}
+            type="checkbox"
+          />
+        </label>
+        <hr />
+        <button
+          onClick={async () => {
+            await sendToContentScript({ name: "nytogether-msg-joinGame" })
+          }}
+          disabled={joinedRoom}>
+          Join room
+        </button>
+        {joinedRoom && <p>Connected peers: {numPeers}</p>}
+      </>
+    )
   }
 
   return (
