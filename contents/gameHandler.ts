@@ -1,7 +1,7 @@
 import { once } from "lodash"
 import type { PlasmoCSConfig } from "plasmo"
 
-import { findReact, findStore } from "~utils"
+import { customEventListen, findReact, findStore } from "~utils"
 
 // Content script lives in the MAIN world.
 // Responsible for finding the Redux store using React internals.
@@ -58,11 +58,11 @@ const triggerInputChange = (node: HTMLInputElement, inputValue: string) => {
 
 // TODO: buffer fillCells if they are called while rebus is currently being
 //       inputted manually, or restore rebus state
-window.addEventListener("nytogether-store-fillCell", (event: CustomEvent) => {
+customEventListen(window, "nytogether-store-fillCell", (detail) => {
   const {
     cell: { guess, penciled },
     cellId
-  } = event.detail
+  } = detail
 
   const storeState = currStore.getState()
   const prevSelection = storeState.selection.cell
@@ -110,6 +110,7 @@ window.addEventListener("nytogether-store-fillCell", (event: CustomEvent) => {
       index: prevSelection
     }
   })
+  console.log("set cell, value: %s", guess)
 })
 
 async function callback(mutationsList: MutationRecord[]) {

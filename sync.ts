@@ -55,7 +55,7 @@ export function updateStoreState(state: any) {
 
       if (globalSendCell !== null) {
         globalSendCell({ cellId: i, value: newCell }).then(() => {
-          console.log("sent cell")
+          console.log("sent cell, value: %s", newCell.guess)
         })
       }
     }
@@ -143,10 +143,10 @@ export function setupSync(
   })
 
   const [sendCell, receiveCell] = currRoom.makeAction("cell")
-  receiveCell((data: any, _peerId) => {
+  receiveCell(async (data: any, _peerId) => {
     syncing = true
-    onSetCell(data.cellId, data.value)
     cells[data.cellId] = data.value
+    await onSetCell(data.cellId, data.value)
     syncing = false
   })
 
