@@ -1,6 +1,7 @@
 import assert from "assert"
 import { isEqual } from "lodash"
 import { joinRoom, type Room } from "trystero"
+
 import { Storage } from "@plasmohq/storage"
 
 export interface Cell {
@@ -13,7 +14,6 @@ let cells: Cell[]
 // Current user's selection.
 let selection: number | null = null
 // Map of peer id to their selection.
-// TODO: handle multiple peers on the same cell
 let peerSelections: Map<string, number> = new Map()
 // Whether or not we are currently syncing the store state.
 // If so, we want to ignore all store updates.
@@ -67,10 +67,7 @@ let currRoom: Room | null = null
 
 export function setupSync(
   state: any,
-  onSetSelection: (
-    prevCellId: number | null,
-    cellId: number | null
-  ) => Promise<void>,
+  onSelectionUpdate: (peerSelections: Map<string, number>) => Promise<void>,
   onSetCell: (cellId: number, value: Cell) => Promise<void>,
   roomName: string
 ) {
@@ -78,16 +75,19 @@ export function setupSync(
   if (roomName === currRoomName) {
     return
   }
-  currRoom?.leave()
+
+  cells = null
+  selection = null
+  peerSelections = new Map()
+  syncing = false
+
+  if (currRoom) {
+    currRoom.leave()
+    // reset peer selections to null
+    onSelectionUpdate(peerSelections)
+  }
 
   currRoomName = roomName
-
-  let joinedRoomName = currRoomName
-  const expectedPrefix = `${state.gameData.filename}/`
-  if (joinedRoomName.startsWith(expectedPrefix)) {
-    joinedRoomName = joinedRoomName.slice(expectedPrefix.length)
-  }
-  storage.set("joinedRoomName", joinedRoomName)
 
   // Initialize the room
   cells = state.cells.map(nytCellToCell)
@@ -97,6 +97,13 @@ export function setupSync(
 
   const config = { appId: "nytogether" }
   currRoom = joinRoom(config, roomName)
+
+  let joinedRoomName = currRoomName
+  const expectedPrefix = `${state.gameData.filename}/`
+  if (joinedRoomName.startsWith(expectedPrefix)) {
+    joinedRoomName = joinedRoomName.slice(expectedPrefix.length)
+  }
+  storage.set("joinedRoomName", joinedRoomName)
 
   const [sendInitialBoard, receiveInitialBoard] =
     currRoom.makeAction("initialize")
@@ -131,10 +138,8 @@ export function setupSync(
     if (peerSelections.get(peerId) === data) {
       return
     }
-    const prevPeerSelection = peerSelections.get(peerId) ?? null
-    console.log(peerSelections)
-    onSetSelection(prevPeerSelection, data)
     peerSelections.set(peerId, data)
+    onSelectionUpdate(peerSelections)
   })
 
   const [sendCell, receiveCell] = currRoom.makeAction("cell")
@@ -156,8 +161,8 @@ export function setupSync(
 
   currRoom.onPeerLeave((peerId: string) => {
     console.log("peer id w/ id %s left", peerId)
-    onSetSelection(peerSelections.get(peerId) ?? null, null)
     peerSelections.delete(peerId)
+    onSelectionUpdate(peerSelections)
 
     storage.set("numPeers", Object.keys(currRoom.getPeers()).length)
   })

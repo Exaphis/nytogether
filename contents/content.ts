@@ -3,7 +3,7 @@ import type { PlasmoCSConfig } from "plasmo"
 import { listen } from "@plasmohq/messaging/message"
 import { Storage } from "@plasmohq/storage"
 
-import { setupSync, updateStoreState, type Cell, getSyncState } from "~sync"
+import { getSyncState, setupSync, updateStoreState, type Cell } from "~sync"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://www.nytimes.com/crosswords/game/*"],
@@ -16,8 +16,7 @@ let currStoreState = null
 listen(async (req, res) => {
   if (req.name === "nytogether-msg-alive") {
     res.send(true)
-  }
-  else if (req.name === "nytogether-msg-joinGame") {
+  } else if (req.name === "nytogether-msg-joinGame") {
     initialize(currStoreState)
   }
 })
@@ -32,23 +31,16 @@ function setCell(cellId: number, cell: Cell) {
   window.dispatchEvent(event)
 }
 
-function setSelection(prevCellId: number | null, cellId: number | null) {
+function setSelections(cellIds: number[]) {
   const cellElems = document.querySelectorAll(".xwd__cell")
-  function setCellFill(targetCellId: number, fill: string | null) {
-    const cellElem = cellElems[targetCellId]
+  for (let i = 0; i < cellElems.length; i++) {
+    const cellElem = cellElems[i]
     const inputElem = cellElem.querySelector("rect")
-    if (fill === null) {
-      inputElem.style.removeProperty("fill")
+    if (cellIds.includes(i)) {
+      inputElem.style.fill = "greenyellow"
     } else {
-      inputElem.style.fill = fill
+      inputElem.style.removeProperty("fill")
     }
-  }
-
-  if (prevCellId !== null) {
-    setCellFill(prevCellId, null)
-  }
-  if (cellId !== null) {
-    setCellFill(cellId, "greenyellow")
   }
 }
 
@@ -58,8 +50,8 @@ async function initialize(storeState) {
 
   setupSync(
     storeState,
-    async (prevCellId: number | null, cellId: number | null) => {
-      setSelection(prevCellId, cellId)
+    async (peerSelections: Map<string, number>) => {
+      setSelections(Array.from(peerSelections.values()))
     },
     async (cellId, cell) => {
       setCell(cellId, cell)
