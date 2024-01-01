@@ -107,30 +107,38 @@ export function setupSync(
 
   const [sendInitialBoard, receiveInitialBoard] =
     currRoom.makeAction("initialize")
+
   receiveInitialBoard((data: Cell[]) => {
     console.log("received initial board")
     console.log(data)
-    // ensure that all cells are empty before initializing
-    let allEmpty = true
-    for (const cell of cells!) {
-      if (cell.guess !== "") {
-        allEmpty = false
+    // ensure that all cells are compatible with the new board
+    // (i.e., no conflicting cells) before initializing
+    assert(cells.length === data.length)
+    let compatible = true
+    for (let i = 0; i < data.length; i++) {
+      if (cells[i].guess !== "" && !isEqual(cells[i], data[i])) {
+        compatible = false
         break
       }
     }
 
-    if (allEmpty) {
-      syncing = true
-      for (let i = 0; i < data!.length; i++) {
-        if (!isEqual(cells[i], data[i])) {
-          onSetCell(i, data[i])
-          cells[i] = data[i]
-        }
+    if (!compatible) {
+      const reset = confirm(
+        "The room you are trying to join conflicts with your current board. Do you want to reset your board to the room's board?"
+      )
+      if (!reset) {
+        return
       }
-      syncing = false
-    } else {
-      console.error("not initializing, cells are not empty")
     }
+
+    // syncing = true
+    // for (let i = 0; i < data.length; i++) {
+    //   if (!isEqual(cells[i], data[i])) {
+    //     onSetCell(i, data[i])
+    //     cells[i] = data[i]
+    //   }
+    // }
+    // syncing = false
   })
 
   const [sendSelection, receiveSelection] = currRoom.makeAction("selection")
