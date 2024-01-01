@@ -76,6 +76,11 @@ export function setupSync(
     return
   }
 
+  // Do not initialize if the NYT puzzle has not synced yet
+  if (!state.transient.isSynced) {
+    return
+  }
+
   cells = null
   selection = null
   peerSelections = new Map()
@@ -131,14 +136,14 @@ export function setupSync(
       }
     }
 
-    // syncing = true
-    // for (let i = 0; i < data.length; i++) {
-    //   if (!isEqual(cells[i], data[i])) {
-    //     onSetCell(i, data[i])
-    //     cells[i] = data[i]
-    //   }
-    // }
-    // syncing = false
+    syncing = true
+    for (let i = 0; i < data.length; i++) {
+      if (!isEqual(cells[i], data[i])) {
+        onSetCell(i, data[i])
+        cells[i] = data[i]
+      }
+    }
+    syncing = false
   })
 
   const [sendSelection, receiveSelection] = currRoom.makeAction("selection")

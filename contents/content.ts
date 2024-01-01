@@ -114,5 +114,6 @@ window.addEventListener("nytogether-store", async (e: CustomEvent) => {
     currStoreDiffVersion,
     expectedStoreDiffVersion
   )
+  console.log(storeState)
   updateStoreState(storeState)
 })
