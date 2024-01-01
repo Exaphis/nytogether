@@ -14,6 +14,19 @@ export const config: PlasmoCSConfig = {
 const storage = new Storage()
 let currStoreState = null
 
+// Augment the store state with a version number.
+// This version number will be incremented any time a cell is set
+// automatically.
+//
+// If we don't do this, the store subscriber can fire with old state
+// after setCell returns, which causes the old state to be sent back
+// to the other peers followed by the new state.
+// This causes an infinite loop.
+//
+// A version number fixes the issue by ignoring old states encountered
+// by the subscriber.
+let expectedStoreDiffVersion = 0
+
 listen(async (req, res) => {
   if (req.name === "nytogether-msg-alive") {
     res.send(true)
@@ -22,28 +35,13 @@ listen(async (req, res) => {
   }
 })
 
-function delay(time) {
-  return new Promise(resolve => setTimeout(resolve, time));
-}
-
 async function setCell(cellId: number, cell: Cell) {
+  expectedStoreDiffVersion += 1
   await customEventTrigger(window, "nytogether-store-fillCell", {
     cell,
-    cellId
+    cellId,
+    nytogetherDiffVersion: expectedStoreDiffVersion
   })
-  // TODO: very hacky! wait for 250ms to ensure the store update
-  // propagated.
-  //
-  // if we don't do this, the store subscriber can fire after
-  // setCell returns, which causes the old state to be sent back
-  // to the other peers, then causing an infinite loop
-  //
-  // waiting for 250ms will keep the "syncing" flag set to true,
-  // which prevents the old state from being sent
-
-  // idea: could we add a new reducer that updates some new field
-  // of the store and check for that instead?
-  await delay(250)
 }
 
 document.addEventListener("keydown", (e) => {
@@ -87,9 +85,16 @@ window.addEventListener("nytogether-store", async (e: CustomEvent) => {
   const storeState = e.detail
   currStoreState = storeState
 
+  const currStoreDiffVersion =
+    storeState.user.settings.nytogetherDiffVersion || 0
+  if (currStoreDiffVersion < expectedStoreDiffVersion) {
+    // ignore old states
+    return
+  }
+
   if (await storage.get("joinAutomatically")) {
     initialize(storeState)
   }
-  console.log(storeState.cells[0])
+  console.log(storeState)
   updateStoreState(storeState)
 })

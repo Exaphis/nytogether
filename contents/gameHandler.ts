@@ -61,7 +61,8 @@ const triggerInputChange = (node: HTMLInputElement, inputValue: string) => {
 customEventListen(window, "nytogether-store-fillCell", (detail) => {
   const {
     cell: { guess, penciled },
-    cellId
+    cellId,
+    nytogetherDiffVersion
   } = detail
 
   const storeState = currStore.getState()
@@ -108,6 +109,15 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
     type: "crossword/selection/SELECT_CELL",
     payload: {
       index: prevSelection
+    }
+  })
+
+  // See content.ts for an explanation of why this is necessary.
+  // This uses a custom setting to set a variable in the store.
+  currStore.dispatch({
+    type: "crossword/user/CHANGE_SETTING",
+    payload: {
+      nytogetherDiffVersion
     }
   })
   console.log("set cell, value: %s", guess)
