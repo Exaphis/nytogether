@@ -55,7 +55,7 @@ export function updateStoreState(state: any) {
 
       if (globalSendCell !== null) {
         globalSendCell({ cellId: i, value: newCell }).then(() => {
-          console.log("sent cell, value: %s", newCell.guess)
+          console.log("sent cell @ %d, value: %s", i, newCell.guess)
         })
       }
     }

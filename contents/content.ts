@@ -26,6 +26,7 @@ let currStoreState = null
 // A version number fixes the issue by ignoring old states encountered
 // by the subscriber.
 let expectedStoreDiffVersion = 0
+let diffInitialized = false
 
 listen(async (req, res) => {
   if (req.name === "nytogether-msg-alive") {
@@ -85,6 +86,22 @@ window.addEventListener("nytogether-store", async (e: CustomEvent) => {
   const storeState = e.detail
   currStoreState = storeState
 
+  if (!diffInitialized) {
+    diffInitialized = true
+    await customEventTrigger(
+      window,
+      "nytogether-store-resetDiffVersion",
+      expectedStoreDiffVersion
+    )
+    return
+  }
+
+  if (await storage.get("joinAutomatically")) {
+    await initialize(storeState)
+  }
+
+  // This check must be placed after all async calls. Otherwise, the expected diff version
+  // may be modified during the calls, causing us to update with a stale state.
   const currStoreDiffVersion =
     storeState.user.settings.nytogetherDiffVersion || 0
   if (currStoreDiffVersion < expectedStoreDiffVersion) {
@@ -92,9 +109,10 @@ window.addEventListener("nytogether-store", async (e: CustomEvent) => {
     return
   }
 
-  if (await storage.get("joinAutomatically")) {
-    initialize(storeState)
-  }
-  console.log(storeState)
+  console.log(
+    "continuing, store version %d, expected %d",
+    currStoreDiffVersion,
+    expectedStoreDiffVersion
+  )
   updateStoreState(storeState)
 })

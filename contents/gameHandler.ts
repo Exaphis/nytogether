@@ -120,7 +120,22 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
       nytogetherDiffVersion
     }
   })
-  console.log("set cell, value: %s", guess)
+  console.log(
+    "set cell, value: %s, new version: %d",
+    guess,
+    nytogetherDiffVersion
+  )
+})
+
+customEventListen(window, "nytogether-store-resetDiffVersion", (detail) => {
+  const nytogetherDiffVersion = detail
+  currStore.dispatch({
+    type: "crossword/user/CHANGE_SETTING",
+    payload: {
+      nytogetherDiffVersion
+    }
+  })
+  console.log("reset diff version to %d", nytogetherDiffVersion)
 })
 
 async function callback(mutationsList: MutationRecord[]) {

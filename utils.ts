@@ -66,8 +66,13 @@ export function findStore(state) {
 }
 
 let outstandingPromises: Map<string, (value: any) => void> = new Map()
+let attachedListeners: Set<string> = new Set()
 
-export function customEventTrigger(window: Window, eventName: string, detail: any) {
+export function customEventTrigger(
+  window: Window,
+  eventName: string,
+  detail: any
+) {
   const event = new CustomEvent(`${eventName}-send`, {
     detail: {
       requestId: nanoid(),
@@ -76,20 +81,28 @@ export function customEventTrigger(window: Window, eventName: string, detail: an
   })
   const promise = new Promise((resolve) => {
     outstandingPromises.set(event.detail.requestId, resolve)
+    window.dispatchEvent(event)
   })
 
+  if (attachedListeners.has(eventName)) {
+    return promise
+  }
   window.addEventListener(`${eventName}-receive`, (event: CustomEvent) => {
     const { requestId, resp } = event.detail
     const resolve = outstandingPromises.get(requestId)
     resolve(resp)
     outstandingPromises.delete(requestId)
   })
+  attachedListeners.add(eventName)
 
-  window.dispatchEvent(event)
   return promise
 }
 
-export function customEventListen(window: Window, eventName: string, callback: any) {
+export function customEventListen(
+  window: Window,
+  eventName: string,
+  callback: any
+) {
   window.addEventListener(`${eventName}-send`, (event: CustomEvent) => {
     const { requestId, originalDetail } = event.detail
     const resp = callback(originalDetail)
