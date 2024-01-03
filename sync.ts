@@ -36,6 +36,10 @@ export function updateStoreState(state: any) {
   if (syncing) {
     return
   }
+  if (cells === null || selection === null) {
+    // We haven't initialized yet.
+    return
+  }
 
   let newSelection = state.selection.cell
   if (newSelection !== selection) {
