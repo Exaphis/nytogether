@@ -65,9 +65,33 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
     nytogetherDiffVersion
   } = detail
 
+  function callOnBlur(node: HTMLInputElement) {
+    for (const key of Object.keys(node)) {
+      if (key.startsWith("__reactEventHandlers$")) {
+        node[key].onBlur()
+        break
+      }
+    }
+  }
+
   const storeState = currStore.getState()
   const prevSelection = storeState.selection.cell
+  const inPencilMode = storeState.toolbar.inPencilMode
 
+  // TODO: restore rebus selection state (cursor position, selection if any)
+  const inRebusMode = storeState.toolbar.inRebusMode
+  const rebusContents = storeState.toolbar.rebusValue
+  if (inRebusMode) {
+    const selectedCellGuess = storeState.cells[prevSelection].guess
+    const rebusInput = document.querySelector(
+      "#rebus-input"
+    ) as HTMLInputElement
+    triggerInputChange(rebusInput, selectedCellGuess)
+    // Save the change by calling the onBlur handler
+    callOnBlur(rebusInput)
+  }
+
+  // First, select the cell to change
   currStore.dispatch({
     type: "crossword/selection/SELECT_CELL",
     payload: {
@@ -75,14 +99,14 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
     }
   })
 
-  const inPencilMode = currStore.getState().toolbar.inPencilMode
-
+  // Then, toggle pencil mode if needed
   if (penciled !== inPencilMode) {
     currStore.dispatch({
       type: "crossword/toolbar/TOGGLE_PENCIL_MODE"
     })
   }
 
+  // Then, enable rebus mode
   // Select the button with aria-label="Rebus"
   const rebusButton = document.querySelector(
     '[aria-label="Rebus"]'
@@ -92,25 +116,30 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
   const rebusInput = document.querySelector("#rebus-input") as HTMLInputElement
   triggerInputChange(rebusInput, guess)
   // Save the change by calling the onBlur handler
-  for (const key of Object.keys(rebusInput)) {
-    if (key.startsWith("__reactEventHandlers$")) {
-      rebusInput[key].onBlur()
-      break
-    }
-  }
+  callOnBlur(rebusInput)
 
+  // Re-toggle pencil mode if we changed it
   if (penciled !== inPencilMode) {
     currStore.dispatch({
       type: "crossword/toolbar/TOGGLE_PENCIL_MODE"
     })
   }
 
+  // Restore the selected cell
   currStore.dispatch({
     type: "crossword/selection/SELECT_CELL",
     payload: {
       index: prevSelection
     }
   })
+
+  if (inRebusMode) {
+    rebusButton.click()
+    const rebusInput = document.querySelector(
+      "#rebus-input"
+    ) as HTMLInputElement
+    triggerInputChange(rebusInput, rebusContents)
+  }
 
   // See content.ts for an explanation of why this is necessary.
   // This uses a custom setting to set a variable in the store.
