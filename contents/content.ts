@@ -86,6 +86,11 @@ window.addEventListener("nytogether-store", async (e: CustomEvent) => {
   const storeState = e.detail
   currStoreState = storeState
 
+  // Ignore if the NYT puzzle has not synced yet
+  if (!storeState.transient.isSynced) {
+    return
+  }
+
   if (!diffInitialized) {
     diffInitialized = true
     await customEventTrigger(

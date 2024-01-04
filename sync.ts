@@ -36,10 +36,8 @@ export function updateStoreState(state: any) {
   if (syncing) {
     return
   }
-  if (cells === null || selection === null) {
-    // We haven't initialized yet.
-    return
-  }
+  assert(globalSendCell !== null && globalSendSelection !== null)
+  console.log("updating state")
 
   let newSelection = state.selection.cell
   if (newSelection !== selection) {
@@ -80,15 +78,12 @@ export function setupSync(
     return
   }
 
-  // Do not initialize if the NYT puzzle has not synced yet
-  if (!state.transient.isSynced) {
-    return
-  }
-
   cells = null
   selection = null
   peerSelections = new Map()
   syncing = false
+  globalSendSelection = null
+  globalSendCell = null
 
   if (currRoom) {
     currRoom.leave()
@@ -168,6 +163,11 @@ export function setupSync(
   })
 
   currRoom.onPeerJoin((_peerId: string) => {
+    // TODO: this actually fires if the user joins a room that
+    // already exists. We should not send initial board state, or
+    // ignore this board state if so.
+    // We could use the cell last modified timestamp to resolve conflicts
+    // instead?
     console.log("peer id w/ id %s joined, sending board data", _peerId)
     assert(cells !== null)
     sendInitialBoard(cells)
