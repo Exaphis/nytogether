@@ -55,9 +55,6 @@ const triggerInputChange = (node: HTMLInputElement, inputValue: string) => {
 // a bit hacky and shows an ominous warning banner.
 //
 // Instead, we use the rebus function to fill in the cell.
-
-// TODO: buffer fillCells if they are called while rebus is currently being
-//       inputted manually, or restore rebus state
 customEventListen(window, "nytogether-store-fillCell", (detail) => {
   const {
     cell: { guess, penciled },
