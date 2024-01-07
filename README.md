@@ -1,33 +1,27 @@
-This is a [Plasmo extension](https://docs.plasmo.com/) project bootstrapped with [`plasmo init`](https://www.npmjs.com/package/plasmo).
+# NYTogether
 
-## Getting Started
+NYTogether is a browser extension that lets you collaborate with your friends on
+[New York Times crossword puzzles](https://www.nytimes.com/crosswords) directly 
+on the site.
 
-First, run the development server:
+This lets you track your progress and streaks directly using the New York Tiems
+interface. If staying on the site is not necessary for you,
+[Down for a Cross](https://downforacross.com/) is likely a better option.
 
-```bash
-pnpm dev
-# or
-npm run dev
-```
+## Usage
 
-Open your browser and load the appropriate development build. For example, if you are developing for the chrome browser, using manifest v3, use: `build/chrome-mv3-dev`.
+1. Install the extension
+2. Open the New York Times crossword puzzle page
+3. Click the extension icon
+4. Set your room name the same as your friend's
+5. Click "Join Room"
+6. Start solving the puzzle!
 
-You can start editing the popup by modifying `popup.tsx`. It should auto-update as you make changes. To add an options page, simply add a `options.tsx` file to the root of the project, with a react component default exported. Likewise to add a content page, add a `content.ts` file to the root of the project, importing some module and do some logic, then reload the extension on your browser.
+If you check "Join automatically", you will automatically join the room when you
+open the puzzle page. This is useful if you always solve puzzles with the same
+person.
 
-For further guidance, [visit our Documentation](https://docs.plasmo.com/)
+## How does it work?
 
-## Making production build
-
-Run the following:
-
-```bash
-pnpm build
-# or
-npm run build
-```
-
-This should create a production bundle for your extension, ready to be zipped and published to the stores.
-
-## Submit to the webstores
-
-The easiest way to deploy your Plasmo extension is to use the built-in [bpp](https://bpp.browser.market) GitHub action. Prior to using this action however, make sure to build your extension and upload the first version to the store to establish the basic credentials. Then, simply follow [this setup instruction](https://docs.plasmo.com/framework/workflows/submit) and you should be on your way for automated submission!
+The extension is built with [Plasmo](https://docs.plasmo.com/). Collaboration
+is enabled using peer-to-peer networking with [Trystero](https://github.com/dmotz/trystero)
