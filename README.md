@@ -25,3 +25,11 @@ person.
 
 The extension is built with [Plasmo](https://docs.plasmo.com/). Collaboration
 is enabled using peer-to-peer networking with [Trystero](https://github.com/dmotz/trystero)
+
+## Development
+
+```
+git clone git@github.com:Exaphis/nytogether.git
+cd nytogether
+yarn dev
+```
