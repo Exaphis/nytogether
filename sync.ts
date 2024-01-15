@@ -147,6 +147,8 @@ export function setupSync(
 
   const [sendSelection, receiveSelection] = currRoom.makeAction("selection")
   receiveSelection((data: number, peerId: string) => {
+    // TODO: instead of single cell, send the clue selected and
+    // highlight the entire row/columns
     if (peerSelections.get(peerId) === data) {
       return
     }
