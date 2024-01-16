@@ -5,6 +5,8 @@ import { sendToContentScript } from "@plasmohq/messaging"
 import { useStorage } from "@plasmohq/storage/hook"
 
 function IndexPopup() {
+  // TODO: store state in background using a redux store
+  // https://stackoverflow.com/a/34595184/6686559
   const [roomName, setRoomName] = useStorage("roomName", (v) =>
     v === undefined || v === "" ? nanoid(10) : v
   )
