@@ -82,6 +82,7 @@ function getSyncState(): SyncState | null {
 function sendSyncState() {
   const syncState = getSyncState()
   if (syncState !== null) {
+    // TODO: set extension icon
     chrome.runtime.sendMessage({
       name: "nytogether-msg-setSyncState",
       syncState
