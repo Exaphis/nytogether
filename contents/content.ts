@@ -29,9 +29,7 @@ let expectedStoreDiffVersion = 0
 let diffInitialized = false
 
 listen(async (req, res) => {
-  if (req.name === "nytogether-msg-alive") {
-    res.send(true)
-  } else if (req.name === "nytogether-msg-joinGame") {
+  if (req.name === "nytogether-msg-joinGame") {
     initialize(currStoreState)
   }
 })

@@ -2,8 +2,6 @@ import assert from "assert"
 import { isEqual } from "lodash"
 import { joinRoom, type Room } from "trystero"
 
-import { Storage } from "@plasmohq/storage"
-
 export interface Cell {
   guess: string
   penciled: boolean
@@ -21,9 +19,6 @@ let syncing = false
 
 let globalSendSelection: any = null
 let globalSendCell: any = null
-
-const storage = new Storage()
-storage.set("joinedRoomName", null)
 
 export function nytCellToCell(nytCell: any): Cell {
   return {
@@ -66,6 +61,39 @@ export function updateStoreState(state: any) {
 
 let currRoomName: string | null = null
 let currRoom: Room | null = null
+let originalRoomName: string | null = null
+
+interface SyncState {
+  roomName: string
+  numPeers: number
+}
+
+function getSyncState(): SyncState | null {
+  if (currRoom === null) {
+    return null
+  }
+
+  return {
+    roomName: originalRoomName!,
+    numPeers: Object.keys(currRoom.getPeers()).length
+  }
+}
+
+function sendSyncState() {
+  const syncState = getSyncState()
+  if (syncState !== null) {
+    chrome.runtime.sendMessage({
+      name: "nytogether-msg-setSyncState",
+      syncState
+    })
+  }
+}
+
+chrome.runtime.onMessage.addListener((req, _sender, _sendResponse) => {
+  if (req.name === "nytogether-msg-getSyncState") {
+    sendSyncState()
+  }
+})
 
 export function setupSync(
   state: any,
@@ -107,7 +135,7 @@ export function setupSync(
   if (joinedRoomName.startsWith(expectedPrefix)) {
     joinedRoomName = joinedRoomName.slice(expectedPrefix.length)
   }
-  storage.set("joinedRoomName", joinedRoomName)
+  originalRoomName = joinedRoomName
 
   const [sendInitialBoard, receiveInitialBoard] =
     currRoom.makeAction("initialize")
@@ -175,7 +203,7 @@ export function setupSync(
     sendInitialBoard(cells)
     sendSelection(selection)
 
-    storage.set("numPeers", Object.keys(currRoom.getPeers()).length)
+    sendSyncState()
   })
 
   currRoom.onPeerLeave((peerId: string) => {
@@ -183,25 +211,10 @@ export function setupSync(
     peerSelections.delete(peerId)
     onSelectionUpdate(peerSelections)
 
-    storage.set("numPeers", Object.keys(currRoom.getPeers()).length)
+    sendSyncState()
   })
 
   globalSendSelection = sendSelection
   globalSendCell = sendCell
-}
-
-interface SyncState {
-  roomName: string
-  peers: number
-}
-
-export function getSyncState(): SyncState | null {
-  if (currRoom === null) {
-    return null
-  }
-
-  return {
-    roomName: currRoomName!,
-    peers: Object.keys(currRoom.getPeers()).length
-  }
+  sendSyncState()
 }
