@@ -1,6 +1,10 @@
 import assert from "assert"
 import { isEqual } from "lodash"
 import { joinRoom, type Room } from "trystero"
+import aloneIcon from "url:~assets/alone-48.png"
+import togetherIcon from "url:~assets/together-48.png"
+
+import { sendToBackground } from "@plasmohq/messaging"
 
 export interface Cell {
   guess: string
@@ -82,7 +86,13 @@ function getSyncState(): SyncState | null {
 function sendSyncState() {
   const syncState = getSyncState()
   if (syncState !== null) {
-    // TODO: set extension icon
+    sendToBackground({
+      name: "setIcon",
+      body: {
+        path: syncState.numPeers === 0 ? aloneIcon : togetherIcon
+      }
+    })
+
     chrome.runtime.sendMessage({
       name: "nytogether-msg-setSyncState",
       syncState
