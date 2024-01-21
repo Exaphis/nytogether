@@ -159,7 +159,11 @@ export function setupSync(
     assert(cells.length === data.length)
     let compatible = true
     for (let i = 0; i < data.length; i++) {
-      if (cells[i].guess !== "" && !isEqual(cells[i], data[i])) {
+      if (
+        cells[i].guess !== "" &&
+        data[i].guess !== "" &&
+        !isEqual(cells[i], data[i])
+      ) {
         compatible = false
         break
       }
@@ -176,7 +180,7 @@ export function setupSync(
 
     syncing = true
     for (let i = 0; i < data.length; i++) {
-      if (!isEqual(cells[i], data[i])) {
+      if (data[i].guess !== "" && !isEqual(cells[i], data[i])) {
         onSetCell(i, data[i])
         cells[i] = data[i]
       }
