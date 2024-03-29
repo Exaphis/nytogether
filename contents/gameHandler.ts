@@ -35,6 +35,9 @@ const initialize = once((store) => {
 
 const triggerInputChange = (node: HTMLInputElement, inputValue: string) => {
   // https://stackoverflow.com/a/46012210/6686559
+  console.log("triggering input change")
+  console.log(node)
+  console.log(inputValue)
   var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     window.HTMLInputElement.prototype,
     "value"
@@ -43,6 +46,27 @@ const triggerInputChange = (node: HTMLInputElement, inputValue: string) => {
 
   var ev2 = new Event("input", { bubbles: true })
   node.dispatchEvent(ev2)
+}
+
+function waitForElm(selector) {
+  return new Promise((resolve) => {
+    if (document.querySelector(selector)) {
+      return resolve(document.querySelector(selector))
+    }
+
+    const observer = new MutationObserver((mutations) => {
+      if (document.querySelector(selector)) {
+        observer.disconnect()
+        resolve(document.querySelector(selector))
+      }
+    })
+
+    // If you get "parameter 1 is not of type 'Node'" error, see https://stackoverflow.com/a/77855838/492336
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    })
+  })
 }
 
 // We can't simply dispatch actions to the store to update cell values
@@ -63,9 +87,26 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
   } = detail
 
   function callOnBlur(node: HTMLInputElement) {
+    // var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    //   window.HTMLInputElement.prototype,
+    //   "value"
+    // ).set
+    // nativeInputValueSetter.call(node, inputValue)
+
+    const keyPressEvent = new KeyboardEvent("keypress", {
+      key: "a", // The key value of the key pressed
+      code: "KeyA", // The physical key code of the key pressed
+      shiftKey: false, // Whether the Shift key was pressed
+      ctrlKey: false, // Whether the Ctrl key was pressed
+      altKey: false // Whether the Alt key was pressed
+    })
+    node.dispatchEvent(keyPressEvent)
+
     for (const key of Object.keys(node)) {
-      if (key.startsWith("__reactEventHandlers$")) {
-        node[key].onBlur()
+      console.log(key)
+      if (key.startsWith("__reactEvents$")) {
+        console.log("onblur called!!")
+        console.log(node[key])
         break
       }
     }
@@ -110,47 +151,50 @@ customEventListen(window, "nytogether-store-fillCell", (detail) => {
   ) as HTMLButtonElement
   rebusButton.click()
 
-  const rebusInput = document.querySelector("#rebus-input") as HTMLInputElement
-  triggerInputChange(rebusInput, guess)
-  // Save the change by calling the onBlur handler
-  callOnBlur(rebusInput)
-
-  // Re-toggle pencil mode if we changed it
-  if (penciled !== inPencilMode) {
-    currStore.dispatch({
-      type: "crossword/toolbar/TOGGLE_PENCIL_MODE"
-    })
-  }
-
-  // Restore the selected cell
-  currStore.dispatch({
-    type: "crossword/selection/SELECT_CELL",
-    payload: {
-      index: prevSelection
-    }
-  })
-
-  if (inRebusMode) {
+  // wait for rebus mode to be enabled
+  waitForElm("#rebus-input").then((rebusInput: HTMLInputElement) => {
+    triggerInputChange(rebusInput, guess)
+    // Save the change by calling the onBlur handler
+    // callOnBlur(rebusInput)
     rebusButton.click()
-    const rebusInput = document.querySelector(
-      "#rebus-input"
-    ) as HTMLInputElement
-    triggerInputChange(rebusInput, rebusContents)
-  }
 
-  // See content.ts for an explanation of why this is necessary.
-  // This uses a custom setting to set a variable in the store.
-  currStore.dispatch({
-    type: "crossword/user/CHANGE_SETTING",
-    payload: {
-      nytogetherDiffVersion
+    // Re-toggle pencil mode if we changed it
+    if (penciled !== inPencilMode) {
+      currStore.dispatch({
+        type: "crossword/toolbar/TOGGLE_PENCIL_MODE"
+      })
     }
+
+    // Restore the selected cell
+    currStore.dispatch({
+      type: "crossword/selection/SELECT_CELL",
+      payload: {
+        index: prevSelection
+      }
+    })
+
+    if (inRebusMode) {
+      rebusButton.click()
+      const rebusInput = document.querySelector(
+        "#rebus-input"
+      ) as HTMLInputElement
+      triggerInputChange(rebusInput, rebusContents)
+    }
+
+    // See content.ts for an explanation of why this is necessary.
+    // This uses a custom setting to set a variable in the store.
+    currStore.dispatch({
+      type: "crossword/user/CHANGE_SETTING",
+      payload: {
+        nytogetherDiffVersion
+      }
+    })
+    console.log(
+      "set cell, value: %s, new version: %d",
+      guess,
+      nytogetherDiffVersion
+    )
   })
-  console.log(
-    "set cell, value: %s, new version: %d",
-    guess,
-    nytogetherDiffVersion
-  )
 })
 
 customEventListen(window, "nytogether-store-resetDiffVersion", (detail) => {
