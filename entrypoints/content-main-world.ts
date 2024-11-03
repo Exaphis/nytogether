@@ -39,7 +39,8 @@ function isNYTUser(user: any): user is NYTUser {
     )
 }
 
-const handleUserInit = (elem: Element): boolean => {
+const handleRedeem = (elem: Element): boolean => {
+    // Open the redeem page if the user is logged in and does not have crossword access.
     log('Found element:', elem)
     const fiber = findReact(elem)
     log('Fiber:', fiber)
@@ -73,13 +74,10 @@ const handleUserInit = (elem: Element): boolean => {
     return true
 }
 
-export default defineUnlistedScript(() => {
-    log('Initialized.')
-    setNamespace('nytogether')
-
+function observeElement(selector: string, handler: (elem: Element) => boolean) {
     const observer = new MutationObserver((mutations) => {
-        const element = document.querySelector('#hub-root > div.hub-welcome')
-        if (element && handleUserInit(element)) {
+        const element = document.querySelector(selector)
+        if (element && handler(element)) {
             observer.disconnect()
         }
     })
@@ -88,4 +86,11 @@ export default defineUnlistedScript(() => {
         childList: true,
         subtree: true,
     })
+}
+
+export default defineUnlistedScript(() => {
+    log('Initialized.')
+    setNamespace('nytogether')
+
+    observeElement('#hub-root > div.hub-welcome', handleRedeem)
 })
