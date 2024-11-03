@@ -1,18 +1,18 @@
-import { findReact } from "@/utils";
-import { sendMessage, setNamespace } from "webext-bridge/window";
+import { findReact } from '@/utils'
+import { sendMessage, setNamespace } from 'webext-bridge/window'
 
 const log = (message: string, ...args: any[]) => {
-    console.log(`[NYTogether/content-main-world] ${message}`, ...args);
-};
+    console.log(`[NYTogether/content-main-world] ${message}`, ...args)
+}
 
 interface NYTUser {
-    entitlement: string,
-    hasDigi: boolean,
-    hasHd: boolean,
-    hasXwd: boolean,
-    inShortzMode: boolean,
-    isFreeTrial: boolean,
-    isLoggedIn: boolean,
+    entitlement: string
+    hasDigi: boolean
+    hasHd: boolean
+    hasXwd: boolean
+    inShortzMode: boolean
+    isFreeTrial: boolean
+    isLoggedIn: boolean
     regiId: string
 }
 
@@ -70,22 +70,22 @@ const handleUserInit = (elem: Element): boolean => {
         sendMessage('redeem', {}, 'background')
     }
 
-    return true;
+    return true
 }
 
 export default defineUnlistedScript(() => {
-    log('Initialized.');
+    log('Initialized.')
     setNamespace('nytogether')
 
     const observer = new MutationObserver((mutations) => {
-        const element = document.querySelector('#hub-root > div.hub-welcome');
+        const element = document.querySelector('#hub-root > div.hub-welcome')
         if (element && handleUserInit(element)) {
-            observer.disconnect();
+            observer.disconnect()
         }
-    });
+    })
 
     observer.observe(document.body, {
         childList: true,
-        subtree: true
-    });
+        subtree: true,
+    })
 })
