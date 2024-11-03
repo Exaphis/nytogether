@@ -17,5 +17,8 @@
   "devDependencies": {
     "typescript": "^5.6.2",
     "wxt": "^0.19.11"
+  },
+  "dependencies": {
+    "webext-bridge": "^6.0.1"
   }
 }
