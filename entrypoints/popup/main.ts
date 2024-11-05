@@ -1,24 +1,33 @@
+import { setupRoomState } from '@/components/room-state'
 import './style.css'
-import typescriptLogo from '@/assets/typescript.svg'
-import viteLogo from '/wxt.svg'
-import { setupCounter } from '@/components/counter'
+import { sendMessage } from 'webext-bridge/popup'
+
+const log = (message: string, ...args: any[]) => {
+    console.log(`[NYTogether/popup] ${message}`, ...args)
+}
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div>
-    <a href="https://wxt.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="WXT logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>WXT + TypeScript</h1>
+    <h1>NYTogether</h1>
     <div class="card">
-      <button id="counter" type="button"></button>
+      <div class="room-input">
+        <label for="room-name">Room Name:</label>
+        <input type="text" id="room-name" placeholder="Enter room name">
+      </div>
+      <div id="room-state">
+        <h2>Room State</h2>
+      </div>
     </div>
-    <p class="read-the-docs">
-      Click on the WXT and TypeScript logos to learn more
-    </p>
   </div>
 `
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+setupRoomState(document.querySelector<HTMLDivElement>('#room-state')!)
+
+log('Querying room-state')
+browser.tabs.query({ active: true, currentWindow: true }, (tabs: any) => {
+    if (tabs.length > 0) {
+        const tabId = tabs[0].id
+        log('Querying room-state for tab', tabId)
+        sendMessage('query-room-state', {}, `content-script@${tabId}`)
+    }
+})

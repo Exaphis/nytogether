@@ -1,5 +1,5 @@
 import { findReact } from '@/utils'
-import { sendMessage, setNamespace } from 'webext-bridge/window'
+import { sendMessage, setNamespace, onMessage } from 'webext-bridge/window'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content-main-world] ${message}`, ...args)
@@ -129,10 +129,20 @@ const handleGameStore = (elem: Element): boolean => {
         return false
     }
 
-    store.subscribe(() => {
+    function sendState() {
         let state = store.getState()
         state.gameData = (window as any).gameData
-        log('Store changed:', state)
+        sendMessage('room-state', state, 'content-script')
+    }
+
+    store.subscribe(() => {
+        log('Store changed:', store.getState())
+        sendState()
+    })
+
+    onMessage('query-room-state', (message) => {
+        log('Querying room-state')
+        sendState()
     })
     return true
 }
