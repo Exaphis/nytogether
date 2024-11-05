@@ -129,6 +129,11 @@ const handleGameStore = (elem: Element): boolean => {
         return false
     }
 
+    store.subscribe(() => {
+        let state = store.getState()
+        state.gameData = (window as any).gameData
+        log('Store changed:', state)
+    })
     return true
 }
 
