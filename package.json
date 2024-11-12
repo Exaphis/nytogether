@@ -19,6 +19,9 @@
     "wxt": "^0.19.11"
   },
   "dependencies": {
+    "@firebase/app": "^0.10.15",
+    "@firebase/database": "^1.0.9",
+    "firebase": "^11.0.1",
     "webext-bridge": "^6.0.1"
   }
 }
