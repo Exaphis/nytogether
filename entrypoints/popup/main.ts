@@ -39,6 +39,7 @@ function sendMessageToTab(messageID: string, data: any) {
 document
     .querySelector<HTMLInputElement>('#room-name')!
     .addEventListener('input', (event) => {
+        log('Setting room name:', (event.target as HTMLInputElement).value)
         sendMessageToTab('set-room-name', {
             roomName: (event.target as HTMLInputElement).value,
         })
@@ -47,12 +48,14 @@ document
 document
     .querySelector<HTMLInputElement>('#join-button')!
     .addEventListener('click', () => {
+        log('Joining room')
         sendMessageToTab('join-room', {})
     })
 
 document
     .querySelector<HTMLInputElement>('#auto-join')!
     .addEventListener('change', (event) => {
+        log('Setting auto-join:', (event.target as HTMLInputElement).checked)
         sendMessageToTab('set-auto-join', {
             autoJoin: (event.target as HTMLInputElement).checked,
         })
