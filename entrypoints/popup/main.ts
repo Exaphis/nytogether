@@ -11,6 +11,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <h1>NYTogether</h1>
     <div class="card">
       <div class="room-input">
+        <label for="username">Your Name:</label>
+        <input type="text" id="username" placeholder="Enter your name">
         <label for="room-name">Room Name:</label>
         <input type="text" id="room-name" placeholder="Enter room name">
         <div class="auto-join">
@@ -58,6 +60,15 @@ document
         log('Setting auto-join:', (event.target as HTMLInputElement).checked)
         sendMessageToTab('set-auto-join', {
             autoJoin: (event.target as HTMLInputElement).checked,
+        })
+    })
+
+document
+    .querySelector<HTMLInputElement>('#username')!
+    .addEventListener('input', (event) => {
+        log('Setting username:', (event.target as HTMLInputElement).value)
+        sendMessageToTab('set-username', {
+            username: (event.target as HTMLInputElement).value,
         })
     })
 
