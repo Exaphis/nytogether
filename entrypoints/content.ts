@@ -37,7 +37,6 @@ let currentUser: any = null
 let database: any = null
 
 async function main() {
-    log('yahoo!')
     // Initialize Firebase
     const app = initializeApp(firebaseConfig)
 

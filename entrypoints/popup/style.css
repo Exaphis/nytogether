@@ -59,3 +59,9 @@ h1 {
         background-color: #f9f9f9;
     }
 }
+
+#no-puzzle-message {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+}

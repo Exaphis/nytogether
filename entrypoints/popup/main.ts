@@ -10,7 +10,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div>
     <h1>NYTogether</h1>
     <div class="card">
-      <div class="room-input">
+      <p id="no-puzzle-message">Open a NYT Crossword puzzle to get started!</p>
+      <div id="room-input" style="display: none">
         <label for="username">Your Name:</label>
         <input type="text" id="username" placeholder="Enter your name">
         <label for="room-name">Room Name:</label>
@@ -20,15 +21,24 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <label for="auto-join">Auto-join</label>
         </div>
         <button id="join-button">Join</button>
-      </div>
-      <div id="room-state">
-        <h2>Room State</h2>
+        <div id="room-state">
+            <h2>Room State</h2>
+        </div>
       </div>
     </div>
   </div>
 `
 
-setupRoomState(document.querySelector<HTMLDivElement>('#room-state')!)
+setupRoomState(document.querySelector<HTMLDivElement>('#room-state')!, {
+    onRoomStateUpdate: (exists: boolean) => {
+        const roomInput = document.querySelector<HTMLDivElement>('#room-input')!
+        const noPuzzleMessage =
+            document.querySelector<HTMLParagraphElement>('#no-puzzle-message')!
+
+        roomInput.style.display = exists ? 'block' : 'none'
+        noPuzzleMessage.style.display = exists ? 'none' : 'block'
+    },
+})
 
 function sendMessageToTab(messageID: string, data: any) {
     browser.tabs.query({ active: true, currentWindow: true }, (tabs: any) => {

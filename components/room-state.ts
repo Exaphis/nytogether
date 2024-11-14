@@ -1,6 +1,13 @@
 import { onMessage } from 'webext-bridge/popup'
 
-export function setupRoomState(element: HTMLDivElement) {
+interface RoomStateOptions {
+    onRoomStateUpdate?: (exists: boolean) => void
+}
+
+export function setupRoomState(
+    element: HTMLDivElement,
+    options: RoomStateOptions = {}
+) {
     const connectedUsersDiv = document.createElement('p')
     connectedUsersDiv.className = 'connected-users'
     connectedUsersDiv.innerHTML = 'Connected Users: 0'
@@ -13,6 +20,16 @@ export function setupRoomState(element: HTMLDivElement) {
         console.log('Received room-state message:', message.data)
 
         const state = message.data! as any
+
+        // If we have cells data, the puzzle exists
+        const puzzleExists = !!state
+        options.onRoomStateUpdate?.(puzzleExists)
+
+        if (!puzzleExists) {
+            gameStateDiv.innerHTML = 'No puzzle detected'
+            return
+        }
+
         let answers = ''
         for (const cell of state.cells) {
             answers += cell.answer ?? ' '
