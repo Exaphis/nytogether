@@ -37,6 +37,7 @@ let currentUser: any = null
 let database: any = null
 
 async function main() {
+    log('yahoo!')
     // Initialize Firebase
     const app = initializeApp(firebaseConfig)
 
@@ -68,24 +69,11 @@ async function main() {
         sendMessage('query-room-state', {}, 'window')
     })
 
-    onMessage('set-room-name', (message) => {
-        log('Setting room name:', message)
+    onMessage('update-settings', (message) => {
+        log('Updating settings:', message.data)
         if (message.data) {
-            popupState.roomName = (message.data as any).roomName
-        }
-    })
-
-    onMessage('set-auto-join', (message) => {
-        log('Setting auto-join:', message)
-        if (message.data) {
-            popupState.autoJoin = (message.data as any).autoJoin
-        }
-    })
-
-    onMessage('set-username', (message) => {
-        log('Setting username:', message)
-        if (message.data) {
-            popupState.username = (message.data as any).username
+            const settings = message.data as typeof popupState
+            popupState = { ...popupState, ...settings }
         }
     })
 

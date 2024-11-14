@@ -38,38 +38,39 @@ function sendMessageToTab(messageID: string, data: any) {
     })
 }
 
+function updateSettings(
+    settings: Partial<{
+        roomName: string
+        autoJoin: boolean
+        username: string
+    }>
+) {
+    log('Updating settings:', settings)
+    sendMessageToTab('update-settings', settings)
+}
+
 document
     .querySelector<HTMLInputElement>('#room-name')!
     .addEventListener('input', (event) => {
-        log('Setting room name:', (event.target as HTMLInputElement).value)
-        sendMessageToTab('set-room-name', {
-            roomName: (event.target as HTMLInputElement).value,
-        })
-    })
-
-document
-    .querySelector<HTMLInputElement>('#join-button')!
-    .addEventListener('click', () => {
-        log('Joining room')
-        sendMessageToTab('join-room', {})
+        const roomName = (event.target as HTMLInputElement).value
+        log('Setting room name:', roomName)
+        updateSettings({ roomName })
     })
 
 document
     .querySelector<HTMLInputElement>('#auto-join')!
     .addEventListener('change', (event) => {
-        log('Setting auto-join:', (event.target as HTMLInputElement).checked)
-        sendMessageToTab('set-auto-join', {
-            autoJoin: (event.target as HTMLInputElement).checked,
-        })
+        const autoJoin = (event.target as HTMLInputElement).checked
+        log('Setting auto-join:', autoJoin)
+        updateSettings({ autoJoin })
     })
 
 document
     .querySelector<HTMLInputElement>('#username')!
     .addEventListener('input', (event) => {
-        log('Setting username:', (event.target as HTMLInputElement).value)
-        sendMessageToTab('set-username', {
-            username: (event.target as HTMLInputElement).value,
-        })
+        const username = (event.target as HTMLInputElement).value
+        log('Setting username:', username)
+        updateSettings({ username })
     })
 
 log('Querying room-state')
