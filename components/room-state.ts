@@ -9,13 +9,15 @@ interface RoomStateOptions {
 }
 
 interface Member {
-    name: string
+    userId: string
 }
 
 interface RoomState {
     cells?: any[]
-    members?: { [userId: string]: Member }
-    userId?: string
+    nytogetherState?: {
+        userId?: string
+        members?: { [name: string]: Member }
+    }
 }
 
 let currentState: RoomState | null = null
@@ -44,23 +46,22 @@ export function setupRoomState(
         currentUser?: string
     ) {
         log('Updating connected users:', members, currentUser)
-        const users = Object.entries(members).map(([userId, member]) => ({
-            id: userId,
-            name: member.name,
-            isCurrentUser: userId === currentUser,
-        }))
+        if (Object.keys(members).length === 0) {
+            usersList.innerHTML = '<li class="no-users">No users connected</li>'
+            return
+        }
 
-        usersList.innerHTML = users.length
-            ? users
-                  .map(
-                      (user) => `
-                <li class="user ${user.isCurrentUser ? 'current-user' : ''}">
-                    ${user.name}${user.isCurrentUser ? ' (you)' : ''}
+        usersList.innerHTML = Object.entries(members)
+            .map(
+                ([name, obj]) => `
+                <li class="user ${
+                    obj.userId === currentUser ? 'current-user' : ''
+                }">
+                    ${name}${obj.userId === currentUser ? ' (you)' : ''}
                 </li>
             `
-                  )
-                  .join('')
-            : '<li class="no-users">No users connected</li>'
+            )
+            .join('')
     }
 
     onMessage('room-state', async (message) => {
@@ -82,7 +83,12 @@ export function setupRoomState(
         }
 
         // Update connected users
-        updateConnectedUsers(currentState.members, currentState.userId)
+        if (currentState.nytogetherState) {
+            updateConnectedUsers(
+                currentState.nytogetherState.members,
+                currentState.nytogetherState.userId
+            )
+        }
 
         if (currentState.cells) {
             let answers = ''
