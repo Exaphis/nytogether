@@ -1,6 +1,7 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import './tailwind.css'
+import { Button } from '@/components/ui/button'
 
 function Popup() {
     const [count, setCount] = React.useState(10)
@@ -9,13 +10,9 @@ function Popup() {
         <div className="w-[300px] p-4 text-center">
             <h1 className="text-2xl font-bold mb-4">WXT React Popup</h1>
             <div className="p-8">
-                <button
-                    onClick={() => setCount(count + 1)}
-                    className="rounded-lg bg-gray-900 text-white px-4 py-2 text-base font-medium 
-                             hover:border-purple-500 hover:border transition-colors duration-200"
-                >
+                <Button onClick={() => setCount(count + 1)} variant="outline">
                     Count is {count}
-                </button>
+                </Button>
                 <p className="mt-4">
                     Edit{' '}
                     <code className="bg-gray-100 px-1 rounded">
