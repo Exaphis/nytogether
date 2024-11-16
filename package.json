@@ -15,6 +15,12 @@
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@wxt-dev/module-react": "^1.1.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
     "typescript": "^5.6.2",
     "wxt": "^0.19.11"
   },
@@ -22,6 +28,8 @@
     "@firebase/app": "^0.10.15",
     "@firebase/database": "^1.0.9",
     "firebase": "^11.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "webext-bridge": "^6.0.1"
   }
 }
