@@ -83,5 +83,12 @@ document
         updateSettings({ username })
     })
 
+document
+    .querySelector<HTMLButtonElement>('#join-button')!
+    .addEventListener('click', () => {
+        log('Joining room')
+        sendMessageToTab('join-room', {})
+    })
+
 log('Querying room-state')
 sendMessageToTab('query-room-state', {})

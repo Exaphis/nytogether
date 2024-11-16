@@ -5,7 +5,15 @@ import {
 } from 'webext-bridge/content-script'
 import { injectScript } from 'wxt/client'
 import { initializeApp } from 'firebase/app'
-import { getDatabase, ref, set, onDisconnect } from 'firebase/database'
+import {
+    getDatabase,
+    ref,
+    set,
+    onDisconnect,
+    onValue,
+    DataSnapshot,
+    remove,
+} from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
 
 const log = (message: string, ...args: any[]) => {
@@ -27,14 +35,126 @@ const firebaseConfig = {
     appId: '1:35093823942:web:af4ac8f451d5916a9572c7',
 }
 
-let popupState = {
+let popupState: {
+    roomName: string
+    autoJoin: boolean
+    username: string
+    userId: string
+    currentRoomMembers: { [key: string]: { name: string } }
+} = {
     roomName: '',
     autoJoin: false,
     username: '',
+    userId: '',
+    currentRoomMembers: {},
 }
 
-let currentUser: any = null
 let database: any = null
+let connectedRoomData: {
+    roomName: string
+    username: string
+    disconnectRoomMemberListener: any
+} = {
+    roomName: '',
+    username: '',
+    disconnectRoomMemberListener: null,
+}
+
+async function joinRoom() {
+    if (!popupState.roomName || !popupState.username || !popupState.userId) {
+        error('Cannot join room: missing room name, username, or user')
+        return
+    }
+
+    log(
+        'Joining room:',
+        popupState.roomName,
+        'with username:',
+        popupState.username
+    )
+
+    const oldRoomName = connectedRoomData.roomName
+    const oldUsername = connectedRoomData.username
+    connectedRoomData.username = popupState.username
+    connectedRoomData.roomName = popupState.roomName
+
+    // Update the member listener
+    if (oldRoomName !== popupState.roomName) {
+        if (connectedRoomData.disconnectRoomMemberListener) {
+            connectedRoomData.disconnectRoomMemberListener()
+        }
+
+        log('Setting up member listener for room:', popupState.roomName)
+        const membersRef = ref(database, `members/${popupState.roomName}`)
+        connectedRoomData.disconnectRoomMemberListener = onValue(
+            membersRef,
+            (snapshot: DataSnapshot) => {
+                // Transform the data structure from name->userId to userId->name
+                const nameData = snapshot.val() || {}
+                log('Current name data:', nameData)
+                popupState.currentRoomMembers = {}
+
+                Object.entries(nameData).forEach(
+                    ([name, data]: [string, any]) => {
+                        if (data.userId) {
+                            popupState.currentRoomMembers[data.userId] = {
+                                name,
+                            }
+                        }
+                    }
+                )
+
+                sendMessage(
+                    'room-state',
+                    {
+                        members: popupState.currentRoomMembers,
+                        userId: popupState.userId,
+                    },
+                    'popup'
+                )
+            },
+            (e: any) => {
+                error('Error setting up member listener:', e)
+            }
+        )
+    }
+
+    // Add the new username, removing the old username if it exists
+    if (
+        oldUsername !== popupState.username ||
+        oldRoomName !== popupState.roomName
+    ) {
+        if (oldUsername) {
+            log(
+                `Removing old username at path members/${oldRoomName}/${oldUsername}`
+            )
+            const oldMemberRef = ref(
+                database,
+                `members/${oldRoomName}/${oldUsername}`
+            )
+            await remove(oldMemberRef)
+        }
+
+        try {
+            // Update to new structure: roomId/name/username/userId
+            const memberRef = ref(
+                database,
+                `members/${popupState.roomName}/${popupState.username}`
+            )
+
+            // Set up automatic cleanup on disconnect
+            onDisconnect(memberRef).remove()
+
+            // Add the member with new structure
+            await set(memberRef, {
+                userId: popupState.userId,
+            })
+            log('Successfully joined room')
+        } catch (err) {
+            error('Error joining room:', err)
+        }
+    }
+}
 
 async function main() {
     // Initialize Firebase
@@ -46,8 +166,8 @@ async function main() {
     const auth = getAuth()
     try {
         const userCredential = await signInAnonymously(auth)
-        currentUser = userCredential.user
-        log('Signed in anonymously with uid:', currentUser.uid)
+        popupState.userId = userCredential.user.uid
+        log('Signed in anonymously with uid:', popupState.userId)
     } catch (error: any) {
         const errorCode = error.code
         const errorMessage = error.message
@@ -59,8 +179,8 @@ async function main() {
 
     onMessage('room-state', (message) => {
         log('Forwarding room-state message:', message)
-        // forward the message to the popup
-        sendMessage('room-state', message.data, 'popup')
+        const data = message.data as any
+        sendMessage('room-state', { ...data, popupState }, 'popup')
     })
 
     onMessage('query-room-state', (message) => {
@@ -76,32 +196,7 @@ async function main() {
         }
     })
 
-    onMessage('join-room', async () => {
-        log('Joining room:', popupState.roomName)
-        if (!popupState.roomName || !popupState.username || !currentUser) {
-            error('Cannot join room: missing room name, username, or user')
-            return
-        }
-
-        try {
-            // Add the user to the members list
-            const memberRef = ref(
-                database,
-                `members/${popupState.roomName}/${currentUser.uid}`
-            )
-
-            // Set up automatic cleanup on disconnect
-            onDisconnect(memberRef).remove()
-
-            // Add the member
-            await set(memberRef, {
-                name: popupState.username,
-            })
-            log('Successfully joined room')
-        } catch (err) {
-            error('Error joining room:', err)
-        }
-    })
+    onMessage('join-room', joinRoom)
 
     log('Injecting content-main-world.js')
     injectScript('/content-main-world.js', { keepInDom: true })

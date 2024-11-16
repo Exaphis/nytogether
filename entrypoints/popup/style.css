@@ -65,3 +65,34 @@ h1 {
     font-style: italic;
     text-align: center;
 }
+
+.connected-users {
+    margin: 1rem 0;
+    text-align: left;
+}
+
+.connected-users h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+}
+
+.users-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.users-list li {
+    padding: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.users-list .current-user {
+    font-weight: bold;
+    color: #646cff;
+}
+
+.users-list .no-users {
+    color: #666;
+    font-style: italic;
+}
