@@ -35,67 +35,59 @@ const firebaseConfig = {
     appId: '1:35093823942:web:af4ac8f451d5916a9572c7',
 }
 
-let nytogetherState: {
-    roomName: string
-    autoJoin: boolean
-    username: string
-    userId: string
-    members: { [userId: string]: { name: string } }
-} = {
-    roomName: '',
-    autoJoin: false,
-    username: '',
-    userId: '',
-    members: {},
-}
-
 let database: any = null
-let connectedRoomData: {
+let connectedRoomState: {
     roomName: string
     username: string
     disconnectRoomMemberListener: any
+    members: { [userId: string]: { name: string } }
+    userId: string
 } = {
     roomName: '',
     username: '',
     disconnectRoomMemberListener: null,
+    members: {},
+    userId: '',
 }
 
-async function joinRoom() {
-    if (
-        !nytogetherState.roomName ||
-        !nytogetherState.username ||
-        !nytogetherState.userId
-    ) {
-        error('Cannot join room: missing room name, username, or user')
+function sendRoomState() {
+    log('Sending connected room state:', connectedRoomState)
+    sendMessage('room-state', connectedRoomState, 'popup')
+}
+
+async function joinRoom({
+    roomName,
+    username,
+}: {
+    roomName: string
+    username: string
+}) {
+    if (!roomName || !username) {
+        error('Cannot join room: missing room name or username')
         return
     }
 
-    log(
-        'Joining room:',
-        nytogetherState.roomName,
-        'with username:',
-        nytogetherState.username
-    )
+    log('Joining room:', roomName, 'with username:', username)
 
-    const oldRoomName = connectedRoomData.roomName
-    const oldUsername = connectedRoomData.username
-    connectedRoomData.username = nytogetherState.username
-    connectedRoomData.roomName = nytogetherState.roomName
+    const oldRoomName = connectedRoomState.roomName
+    const oldUsername = connectedRoomState.username
+    connectedRoomState.username = username
+    connectedRoomState.roomName = roomName
 
     // Update the member listener
-    if (oldRoomName !== nytogetherState.roomName) {
-        if (connectedRoomData.disconnectRoomMemberListener) {
-            connectedRoomData.disconnectRoomMemberListener()
+    if (oldRoomName !== roomName) {
+        if (connectedRoomState.disconnectRoomMemberListener) {
+            connectedRoomState.disconnectRoomMemberListener()
         }
 
-        log('Setting up member listener for room:', nytogetherState.roomName)
-        const membersRef = ref(database, `members/${nytogetherState.roomName}`)
-        connectedRoomData.disconnectRoomMemberListener = onValue(
+        log('Setting up member listener for room:', roomName)
+        const membersRef = ref(database, `members/${roomName}`)
+        connectedRoomState.disconnectRoomMemberListener = onValue(
             membersRef,
             (snapshot: DataSnapshot) => {
-                nytogetherState.members = snapshot.val() || {}
-                log('Updated members:', nytogetherState.members)
-                sendMessage('room-state', { nytogetherState }, 'popup')
+                connectedRoomState.members = snapshot.val() || {}
+                log('Updated members:', connectedRoomState.members)
+                sendRoomState()
             },
             (e: any) => {
                 error('Error setting up member listener:', e)
@@ -104,10 +96,7 @@ async function joinRoom() {
     }
 
     // Add the new username, removing the old username if it exists
-    if (
-        oldUsername !== nytogetherState.username ||
-        oldRoomName !== nytogetherState.roomName
-    ) {
+    if (oldUsername !== username || oldRoomName !== roomName) {
         if (oldUsername) {
             log(
                 `Removing old username at path members/${oldRoomName}/${oldUsername}`
@@ -121,23 +110,38 @@ async function joinRoom() {
 
         try {
             // Update to new structure: roomId/name/username/userId
-            const memberRef = ref(
-                database,
-                `members/${nytogetherState.roomName}/${nytogetherState.username}`
-            )
+            const memberRef = ref(database, `members/${roomName}/${username}`)
 
             // Set up automatic cleanup on disconnect
             onDisconnect(memberRef).remove()
 
             // Add the member with new structure
             await set(memberRef, {
-                userId: nytogetherState.userId,
+                userId: connectedRoomState.userId,
             })
             log('Successfully joined room')
         } catch (err) {
             error('Error joining room:', err)
         }
     }
+
+    sendRoomState()
+}
+
+async function leaveRoom() {
+    log('Leaving room:', connectedRoomState.roomName)
+    // Remove the member from the database
+    const memberRef = ref(
+        database,
+        `members/${connectedRoomState.roomName}/${connectedRoomState.username}`
+    )
+    await remove(memberRef)
+
+    connectedRoomState.disconnectRoomMemberListener()
+    connectedRoomState.roomName = ''
+    connectedRoomState.username = ''
+
+    sendRoomState()
 }
 
 async function main() {
@@ -150,8 +154,8 @@ async function main() {
     const auth = getAuth()
     try {
         const userCredential = await signInAnonymously(auth)
-        nytogetherState.userId = userCredential.user.uid
-        log('Signed in anonymously with uid:', nytogetherState.userId)
+        connectedRoomState.userId = userCredential.user.uid
+        log('Signed in anonymously with uid:', connectedRoomState.userId)
     } catch (error: any) {
         const errorCode = error.code
         const errorMessage = error.message
@@ -161,29 +165,28 @@ async function main() {
     // allow the injected script to send messages to the background page
     allowWindowMessaging('nytogether')
 
-    onMessage('room-state', (message) => {
-        const data = {
-            ...(message.data as any),
-            nytogetherState,
-        }
-        log('Forwarding room-state message:', data)
-        sendMessage('room-state', data, 'popup')
-    })
-
     onMessage('query-room-state', (message) => {
-        log('Querying room-state')
-        sendMessage('query-room-state', {}, 'window')
+        log('Received room state request from popup')
+        sendRoomState()
     })
 
-    onMessage('set-nytogether-state', (message) => {
-        log('Updating settings:', message.data)
-        if (message.data) {
-            const settings = message.data as typeof nytogetherState
-            nytogetherState = { ...nytogetherState, ...settings }
-        }
+    onMessage('game-state', (message) => {
+        log(
+            'Forwarding game state from content-main-world to popup:',
+            message.data
+        )
+        sendMessage('game-state', message.data, 'popup')
     })
 
-    onMessage('join-room', joinRoom)
+    onMessage('query-game-state', (message) => {
+        log('Forwarding game state request from popup to content-main-world')
+        sendMessage('query-game-state', {}, 'window')
+    })
+
+    onMessage('join-room', (message) => {
+        joinRoom(message.data as any)
+    })
+    onMessage('leave-room', leaveRoom)
 
     log('Injecting content-main-world.js')
     injectScript('/content-main-world.js', { keepInDom: true })

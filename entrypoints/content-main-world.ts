@@ -178,7 +178,7 @@ const handleGameStore = (elem: Element): boolean => {
     function sendState() {
         let state = store.getState()
         state.gameData = (window as any).gameData
-        sendMessage('room-state', state, 'content-script')
+        sendMessage('game-state', state, 'content-script')
     }
 
     store.subscribe(() => {
@@ -188,8 +188,8 @@ const handleGameStore = (elem: Element): boolean => {
 
     globalStore = store
 
-    onMessage('query-room-state', (message) => {
-        log('Querying room-state')
+    onMessage('query-game-state', (message) => {
+        log('Game state requested')
         sendState()
     })
     return true

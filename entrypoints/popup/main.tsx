@@ -25,16 +25,15 @@ interface Member {
     userId: string
 }
 
-interface NYTogetherState {
-    roomName?: string
-    username?: string
-    userId?: string
-    members?: { [name: string]: Member }
+interface RoomState {
+    roomName: string
+    username: string
+    userId: string
+    members: { [name: string]: Member }
 }
 
-interface RoomState {
-    cells?: any[]
-    nytogetherState?: NYTogetherState
+interface GameState {
+    cells: any[]
 }
 
 function sendMessageToTab(messageID: string, data: any) {
@@ -51,13 +50,7 @@ function useRoomState() {
     React.useEffect(() => {
         const unlisten = onMessage('room-state', (message) => {
             log('Received room state message', message)
-
-            // the room state update from the content script can be partial,
-            // so we merge it with the current state
-            setRoomState((prev) => ({
-                ...prev,
-                ...(message.data as RoomState),
-            }))
+            setRoomState(message.data as unknown as RoomState)
         })
 
         sendMessageToTab('query-room-state', {})
@@ -65,13 +58,24 @@ function useRoomState() {
         return unlisten
     }, [setRoomState])
 
-    const customSetRoomState = React.useCallback(
-        (newState: NYTogetherState) => {
-            sendMessageToTab('set-nytogether-state', newState)
-        },
-        [sendMessageToTab]
-    )
-    return { roomState, setNYTogetherState: customSetRoomState }
+    return roomState
+}
+
+function useGameState() {
+    const [gameState, setGameState] = React.useState<GameState | null>(null)
+
+    React.useEffect(() => {
+        const unlisten = onMessage('game-state', (message) => {
+            log('Received game state message', message)
+            setGameState(message.data as unknown as GameState)
+        })
+
+        sendMessageToTab('query-game-state', {})
+        log('Listening for game state messages')
+        return unlisten
+    }, [setGameState])
+
+    return gameState
 }
 
 const roomFormSchema = z.object({
@@ -81,7 +85,8 @@ const roomFormSchema = z.object({
 })
 
 function Contents() {
-    const { roomState, setNYTogetherState } = useRoomState()
+    const roomState = useRoomState()
+    const gameState = useGameState()
 
     const form = useForm<z.infer<typeof roomFormSchema>>({
         resolver: zodResolver(roomFormSchema),
@@ -94,14 +99,13 @@ function Contents() {
 
     function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
-        setNYTogetherState({
+        sendMessageToTab('join-room', {
             roomName: data.roomName,
             username: data.displayName,
         })
-        sendMessageToTab('join-room', {})
     }
 
-    if (roomState === null) {
+    if (gameState === null || roomState === null) {
         return (
             <Alert>
                 <AlertTitle>No puzzle found</AlertTitle>
@@ -112,18 +116,18 @@ function Contents() {
         )
     }
 
-    if (roomState.nytogetherState?.roomName) {
-        const members = roomState.nytogetherState.members || {}
-        const currentUserId = roomState.nytogetherState.userId
+    if (roomState.roomName) {
+        const members = roomState.members
+        const currentUserId = roomState.userId
 
         return (
             <div className="flex flex-col gap-4 items-start">
                 <div className="flex flex-col gap-2 items-start">
                     <h2 className="font-medium text-lg">
-                        Room: {roomState.nytogetherState.roomName}
+                        Room: {roomState.roomName}
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                        You are: {roomState.nytogetherState.username}
+                        You are: {roomState.username}
                     </p>
                 </div>
                 <div className="flex flex-col gap-2">
@@ -146,6 +150,9 @@ function Contents() {
                         ))}
                     </div>
                 </div>
+                <Button onClick={() => sendMessageToTab('leave-room', {})}>
+                    Leave room
+                </Button>
             </div>
         )
     }
