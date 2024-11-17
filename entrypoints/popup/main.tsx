@@ -105,7 +105,7 @@ function Contents() {
         })
     }
 
-    if (gameState === null || roomState === null) {
+    if (gameState === null) {
         return (
             <Alert>
                 <AlertTitle>No puzzle found</AlertTitle>
@@ -116,7 +116,7 @@ function Contents() {
         )
     }
 
-    if (roomState.roomName) {
+    if (roomState !== null) {
         const members = roomState.members
         const currentUserId = roomState.userId
 

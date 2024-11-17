@@ -42,13 +42,7 @@ let connectedRoomState: {
     disconnectRoomMemberListener: any
     members: { [userId: string]: { name: string } }
     userId: string
-} = {
-    roomName: '',
-    username: '',
-    disconnectRoomMemberListener: null,
-    members: {},
-    userId: '',
-}
+} | null = null
 
 function sendRoomState() {
     log('Sending connected room state:', connectedRoomState)
@@ -66,69 +60,75 @@ async function joinRoom({
         error('Cannot join room: missing room name or username')
         return
     }
+    if (connectedRoomState !== null) {
+        error('Already in a room!')
+        return
+    }
+
+    const user = getAuth().currentUser
+    if (!user) {
+        error('No user!')
+        return
+    }
 
     log('Joining room:', roomName, 'with username:', username)
 
-    const oldRoomName = connectedRoomState.roomName
-    const oldUsername = connectedRoomState.username
-    connectedRoomState.username = username
-    connectedRoomState.roomName = roomName
+    // Add the new username, removing the old username if it exists
+    try {
+        // Update to new structure: roomId/name/username/userId
+        const memberRef = ref(database, `members/${roomName}/${username}`)
+
+        // Set up automatic cleanup on disconnect
+        onDisconnect(memberRef).remove()
+
+        // Add the member with new structure
+        await set(memberRef, {
+            userId: user.uid,
+        })
+        log('Successfully joined room')
+    } catch (err) {
+        error('Error joining room:', err)
+        return
+    }
+
+    // Set the room state up before setting up the member listener
+    // so that we don't miss any updates
+    connectedRoomState = {
+        roomName,
+        username,
+        disconnectRoomMemberListener: null,
+        members: {},
+        userId: user.uid,
+    }
 
     // Update the member listener
-    if (oldRoomName !== roomName) {
-        if (connectedRoomState.disconnectRoomMemberListener) {
-            connectedRoomState.disconnectRoomMemberListener()
-        }
-
-        log('Setting up member listener for room:', roomName)
-        const membersRef = ref(database, `members/${roomName}`)
-        connectedRoomState.disconnectRoomMemberListener = onValue(
-            membersRef,
-            (snapshot: DataSnapshot) => {
-                connectedRoomState.members = snapshot.val() || {}
-                log('Updated members:', connectedRoomState.members)
-                sendRoomState()
-            },
-            (e: any) => {
-                error('Error setting up member listener:', e)
+    log('Setting up member listener for room:', roomName)
+    const membersRef = ref(database, `members/${roomName}`)
+    connectedRoomState.disconnectRoomMemberListener = onValue(
+        membersRef,
+        (snapshot: DataSnapshot) => {
+            if (connectedRoomState === null) {
+                error('Room is disconnected!')
+                return
             }
-        )
-    }
-
-    // Add the new username, removing the old username if it exists
-    if (oldUsername !== username || oldRoomName !== roomName) {
-        if (oldUsername) {
-            log(
-                `Removing old username at path members/${oldRoomName}/${oldUsername}`
-            )
-            const oldMemberRef = ref(
-                database,
-                `members/${oldRoomName}/${oldUsername}`
-            )
-            await remove(oldMemberRef)
+            connectedRoomState.members = snapshot.val() || {}
+            log('Updated members:', connectedRoomState.members)
+            sendRoomState()
+        },
+        (e: any) => {
+            error('Error setting up member listener:', e)
         }
-
-        try {
-            // Update to new structure: roomId/name/username/userId
-            const memberRef = ref(database, `members/${roomName}/${username}`)
-
-            // Set up automatic cleanup on disconnect
-            onDisconnect(memberRef).remove()
-
-            // Add the member with new structure
-            await set(memberRef, {
-                userId: connectedRoomState.userId,
-            })
-            log('Successfully joined room')
-        } catch (err) {
-            error('Error joining room:', err)
-        }
-    }
+    )
 
     sendRoomState()
 }
 
 async function leaveRoom() {
+    if (connectedRoomState === null) {
+        log('Not in a room, skipping leave')
+        return
+    }
+
     log('Leaving room:', connectedRoomState.roomName)
     // Remove the member from the database
     const memberRef = ref(
@@ -137,9 +137,12 @@ async function leaveRoom() {
     )
     await remove(memberRef)
 
-    connectedRoomState.disconnectRoomMemberListener()
-    connectedRoomState.roomName = ''
-    connectedRoomState.username = ''
+    if (!connectedRoomState.disconnectRoomMemberListener) {
+        error('No disconnect room member listener!')
+    } else {
+        connectedRoomState.disconnectRoomMemberListener()
+    }
+    connectedRoomState = null
 
     sendRoomState()
 }
@@ -154,8 +157,7 @@ async function main() {
     const auth = getAuth()
     try {
         const userCredential = await signInAnonymously(auth)
-        connectedRoomState.userId = userCredential.user.uid
-        log('Signed in anonymously with uid:', connectedRoomState.userId)
+        log('Signed in anonymously with uid:', userCredential.user.uid)
     } catch (error: any) {
         const errorCode = error.code
         const errorMessage = error.message
