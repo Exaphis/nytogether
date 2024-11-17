@@ -3,6 +3,20 @@ import { createRoot } from 'react-dom/client'
 import './tailwind.css'
 import { onMessage, sendMessage } from 'webext-bridge/popup'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Form } from '@/components/ui/form'
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+} from '@/components/ui/form'
+import { useForm } from 'react-hook-form'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
@@ -57,8 +71,27 @@ function useRoomState() {
     return { roomState, setNYTogetherState: customSetRoomState }
 }
 
+const roomFormSchema = z.object({
+    displayName: z.string(),
+    roomName: z.string(),
+    autoJoin: z.boolean(),
+})
+
 function Contents() {
     const { roomState, setNYTogetherState } = useRoomState()
+
+    const form = useForm<z.infer<typeof roomFormSchema>>({
+        resolver: zodResolver(roomFormSchema),
+        defaultValues: {
+            displayName: '',
+            roomName: '',
+            autoJoin: false,
+        },
+    })
+
+    function onSubmit(data: z.infer<typeof roomFormSchema>) {
+        log('Joining room', data)
+    }
 
     if (roomState === null) {
         return (
@@ -70,7 +103,48 @@ function Contents() {
             </Alert>
         )
     }
-    return <p>Hello {roomState.nytogetherState?.userId}</p>
+
+    return (
+        <Form {...form}>
+            <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="flex flex-col gap-2"
+            >
+                <FormField
+                    control={form.control}
+                    name="displayName"
+                    render={({ field }) => (
+                        <Input {...field} placeholder="Display name" />
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="roomName"
+                    render={({ field }) => (
+                        <Input {...field} placeholder="Room name" />
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="autoJoin"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                            <FormControl>
+                                <Checkbox
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                            <FormLabel className="text-sm font-normal">
+                                Auto join
+                            </FormLabel>
+                        </FormItem>
+                    )}
+                />
+                <Button type="submit">Join room</Button>
+            </form>
+        </Form>
+    )
 }
 
 // Mount React app
