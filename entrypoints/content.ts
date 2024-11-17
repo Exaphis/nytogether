@@ -175,7 +175,7 @@ async function main() {
         sendMessage('query-room-state', {}, 'window')
     })
 
-    onMessage('update-settings', (message) => {
+    onMessage('set-nytogether-state', (message) => {
         log('Updating settings:', message.data)
         if (message.data) {
             const settings = message.data as typeof nytogetherState

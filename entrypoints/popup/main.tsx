@@ -4,12 +4,11 @@ import './tailwind.css'
 import { onMessage, sendMessage } from 'webext-bridge/popup'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Form } from '@/components/ui/form'
+import { Form, FormMessage } from '@/components/ui/form'
 import {
     FormControl,
     FormField,
@@ -26,12 +25,16 @@ interface Member {
     userId: string
 }
 
+interface NYTogetherState {
+    roomName?: string
+    username?: string
+    userId?: string
+    members?: { [name: string]: Member }
+}
+
 interface RoomState {
     cells?: any[]
-    nytogetherState?: {
-        userId?: string
-        members?: { [name: string]: Member }
-    }
+    nytogetherState?: NYTogetherState
 }
 
 function sendMessageToTab(messageID: string, data: any) {
@@ -63,8 +66,8 @@ function useRoomState() {
     }, [setRoomState])
 
     const customSetRoomState = React.useCallback(
-        (newState: RoomState) => {
-            sendMessageToTab('set-room-state', newState)
+        (newState: NYTogetherState) => {
+            sendMessageToTab('set-nytogether-state', newState)
         },
         [sendMessageToTab]
     )
@@ -72,9 +75,9 @@ function useRoomState() {
 }
 
 const roomFormSchema = z.object({
-    displayName: z.string(),
-    roomName: z.string(),
-    autoJoin: z.boolean(),
+    displayName: z.string().min(1, { message: 'Display name is required' }),
+    roomName: z.string().min(1, { message: 'Room name is required' }),
+    autoJoin: z.boolean(), // TODO: implement
 })
 
 function Contents() {
@@ -91,6 +94,11 @@ function Contents() {
 
     function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
+        setNYTogetherState({
+            roomName: data.roomName,
+            username: data.displayName,
+        })
+        sendMessageToTab('join-room', {})
     }
 
     if (roomState === null) {
@@ -104,6 +112,44 @@ function Contents() {
         )
     }
 
+    if (roomState.nytogetherState?.roomName) {
+        const members = roomState.nytogetherState.members || {}
+        const currentUserId = roomState.nytogetherState.userId
+
+        return (
+            <div className="flex flex-col gap-4 items-start">
+                <div className="flex flex-col gap-2 items-start">
+                    <h2 className="font-medium text-lg">
+                        Room: {roomState.nytogetherState.roomName}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                        You are: {roomState.nytogetherState.username}
+                    </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                    <h3 className="font-medium text-left text-lg">
+                        Connected Users:
+                    </h3>
+                    <div className="flex flex-col gap-1">
+                        {Object.entries(members).map(([username, member]) => (
+                            <div
+                                key={member.userId}
+                                className="flex items-center gap-2 text-sm text-left"
+                            >
+                                <span>{username}</span>
+                                {member.userId === currentUserId && (
+                                    <span className="text-xs text-muted-foreground">
+                                        (you)
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <Form {...form}>
             <form
@@ -114,14 +160,24 @@ function Contents() {
                     control={form.control}
                     name="displayName"
                     render={({ field }) => (
-                        <Input {...field} placeholder="Display name" />
+                        <FormItem>
+                            <FormControl>
+                                <Input {...field} placeholder="Display name" />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
                     )}
                 />
                 <FormField
                     control={form.control}
                     name="roomName"
                     render={({ field }) => (
-                        <Input {...field} placeholder="Room name" />
+                        <FormItem>
+                            <FormControl>
+                                <Input {...field} placeholder="Room name" />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
                     )}
                 />
                 <FormField
