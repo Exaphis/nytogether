@@ -1,89 +1,12 @@
 import { findReact } from '@/utils'
 import { sendMessage, setNamespace, onMessage } from 'webext-bridge/window'
+import type { NYTUser, NYTStoreState } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content-main-world] ${message}`, ...args)
 }
 
-interface NYTUser {
-    entitlement: string
-    hasDigi: boolean
-    hasHd: boolean
-    hasXwd: boolean
-    inShortzMode: boolean
-    isFreeTrial: boolean
-    isLoggedIn: boolean
-    regiId: string
-}
-
 let globalStore: any = null
-
-interface NYTStoreState {
-    cells: [
-        {
-            checked: boolean
-            clues: [number]
-            confirmed: boolean
-            guess: string
-            index: number
-            modified: boolean
-            penciled: boolean
-            revealed: boolean
-            type: number
-        }
-    ]
-    clues: [
-        {
-            alternativeAriaLabelText: string
-            cells: [number]
-            direction: 'Across' | 'Down'
-            index: number
-            isImageClue: boolean
-            label: string
-            list: number
-            next: number
-            prev: number
-            text: string
-            unfilledCount: number
-        }
-    ]
-    toolbar: {
-        inPencilMode: boolean
-        inRebusMode: boolean
-        rebusValue: string
-    }
-    status: {
-        autocheckEnabled: boolean
-        blankCells: number
-        currentProgress: number
-        incorrectCells: number
-        isFilled: boolean
-        isSolved: boolean
-    }
-}
-
-function isNYTUser(user: any): user is NYTUser {
-    return (
-        typeof user === 'object' &&
-        user !== null &&
-        'entitlement' in user &&
-        typeof user.entitlement === 'string' &&
-        'hasDigi' in user &&
-        typeof user.hasDigi === 'boolean' &&
-        'hasHd' in user &&
-        typeof user.hasHd === 'boolean' &&
-        'hasXwd' in user &&
-        typeof user.hasXwd === 'boolean' &&
-        'inShortzMode' in user &&
-        typeof user.inShortzMode === 'boolean' &&
-        'isFreeTrial' in user &&
-        typeof user.isFreeTrial === 'boolean' &&
-        'isLoggedIn' in user &&
-        typeof user.isLoggedIn === 'boolean' &&
-        'regiId' in user &&
-        typeof user.regiId === 'string'
-    )
-}
 
 const handleRedeem = (elem: Element): boolean => {
     // Open the redeem page if the user is logged in and does not have crossword access.
@@ -98,13 +21,8 @@ const handleRedeem = (elem: Element): boolean => {
         return false
     }
 
-    // cast user to NYTUser and verify the schema
-    if (!isNYTUser(fiber.pendingProps.user)) {
-        return false
-    }
-
     let user = fiber.pendingProps.user as NYTUser
-    log('User is valid:', user)
+    log('User:', user)
 
     if (!user.isLoggedIn) {
         log('User is not logged in')
