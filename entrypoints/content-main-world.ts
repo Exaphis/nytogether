@@ -78,7 +78,7 @@ function findStore(state: any): any | null {
     return null
 }
 
-const handleGameStore = (elem: Element): boolean => {
+function handleGameStore(elem: Element): boolean {
     // Try to get the Redux store in the crossword page.
     log('Found element:', elem)
     const fiber = findReact(elem)
@@ -93,23 +93,12 @@ const handleGameStore = (elem: Element): boolean => {
         return false
     }
 
-    function sendState() {
-        let state = store.getState()
-        state.gameData = (window as any).gameData
-        sendMessage('game-state', state, 'content-script')
-    }
-
     store.subscribe(() => {
         log('Store changed:', store.getState())
-        sendState()
+        sendMessage('game-state', store.getState(), 'content-script')
     })
 
     globalStore = store
-
-    onMessage('query-game-state', (message) => {
-        log('Game state requested')
-        sendState()
-    })
     return true
 }
 
@@ -151,4 +140,14 @@ export default defineUnlistedScript(() => {
 
     document.addEventListener('keydown', handleCapsLock)
     document.addEventListener('keyup', handleCapsLock)
+
+    onMessage('query-game-state', (message) => {
+        log('Game state requested')
+        if (!globalStore) {
+            return null
+        }
+        const state = globalStore.getState()
+        state.gameData = (window as any).gameData
+        return state
+    })
 })

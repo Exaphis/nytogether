@@ -16,6 +16,7 @@ import {
     FormLabel,
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
+import { NYTStoreState } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
@@ -32,16 +33,15 @@ interface RoomState {
     members: { [name: string]: Member }
 }
 
-interface GameState {
-    cells: any[]
-}
-
-function sendMessageToTab(messageID: string, data: any) {
-    browser.tabs.query({ active: true, currentWindow: true }, (tabs: any) => {
-        if (tabs.length > 0) {
-            sendMessage(messageID, data, `content-script@${tabs[0].id}`)
-        }
-    })
+async function sendMessageToTab(messageID: string, data: any) {
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true })
+    if (tabs.length > 0) {
+        return await sendMessage(
+            messageID,
+            data,
+            `content-script@${tabs[0].id}`
+        )
+    }
 }
 
 function useRoomState() {
@@ -49,12 +49,22 @@ function useRoomState() {
 
     React.useEffect(() => {
         const unlisten = onMessage('room-state', (message) => {
-            log('Received room state message', message)
+            log('Received room state update:', message)
             setRoomState(message.data as unknown as RoomState)
         })
 
-        sendMessageToTab('query-room-state', {})
-        log('Listening for room state messages')
+        async function fetchInitialState() {
+            try {
+                const state = await sendMessageToTab('query-room-state', {})
+                if (state) {
+                    setRoomState(state as unknown as RoomState)
+                }
+            } catch (err) {
+                console.error('Error fetching initial room state:', err)
+            }
+        }
+
+        fetchInitialState()
         return unlisten
     }, [setRoomState])
 
@@ -62,16 +72,26 @@ function useRoomState() {
 }
 
 function useGameState() {
-    const [gameState, setGameState] = React.useState<GameState | null>(null)
+    const [gameState, setGameState] = React.useState<NYTStoreState | null>(null)
 
     React.useEffect(() => {
         const unlisten = onMessage('game-state', (message) => {
-            log('Received game state message', message)
-            setGameState(message.data as unknown as GameState)
+            log('Received game state update:', message)
+            setGameState(message.data as NYTStoreState)
         })
 
-        sendMessageToTab('query-game-state', {})
-        log('Listening for game state messages')
+        async function fetchInitialState() {
+            try {
+                const state = await sendMessageToTab('query-game-state', {})
+                if (state) {
+                    setGameState(state as NYTStoreState)
+                }
+            } catch (err) {
+                console.error('Error fetching initial game state:', err)
+            }
+        }
+
+        fetchInitialState()
         return unlisten
     }, [setGameState])
 
@@ -97,9 +117,9 @@ function Contents() {
         },
     })
 
-    function onSubmit(data: z.infer<typeof roomFormSchema>) {
+    async function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
-        sendMessageToTab('join-room', {
+        await sendMessageToTab('join-room', {
             roomName: data.roomName,
             username: data.displayName,
         })

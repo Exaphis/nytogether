@@ -15,7 +15,7 @@ import {
     remove,
 } from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
-import { NYTStoreState, NYTStoreStateSchema } from '@/lib/nyt-interfaces'
+import { NYTStoreStateSchema } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content] ${message}`, ...args)
@@ -170,7 +170,7 @@ async function main() {
 
     onMessage('query-room-state', (message) => {
         log('Received room state request from popup')
-        sendRoomState()
+        return connectedRoomState
     })
 
     onMessage('game-state', (message) => {
@@ -190,9 +190,35 @@ async function main() {
         sendMessage('game-state', result.data, 'popup')
     })
 
-    onMessage('query-game-state', (message) => {
-        log('Forwarding game state request from popup to content-main-world')
-        sendMessage('query-game-state', {}, 'window')
+    onMessage('query-game-state', async (message) => {
+        log('Received game state request from popup')
+        try {
+            const gameState = await sendMessage(
+                'query-game-state',
+                {},
+                'window'
+            )
+            log(
+                'Forwarding game state request from popup to content-main-world',
+                gameState
+            )
+
+            if (gameState === null) {
+                log('Current game state is null')
+                return null
+            }
+
+            // Validate the game state using our Zod schema
+            const result = NYTStoreStateSchema.safeParse(gameState)
+            if (!result.success) {
+                error('Invalid game state received:', result.error)
+                return null
+            }
+
+            return result.data
+        } catch (err) {
+            error('Error getting game state:', err)
+        }
     })
 
     onMessage('join-room', (message) => {
