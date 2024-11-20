@@ -15,6 +15,7 @@ import {
     remove,
 } from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
+import { NYTStoreState, NYTStoreStateSchema } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content] ${message}`, ...args)
@@ -173,11 +174,20 @@ async function main() {
     })
 
     onMessage('game-state', (message) => {
+        const gameState = message.data
+
+        // Validate the game state using our Zod schema
+        const result = NYTStoreStateSchema.safeParse(gameState)
+        if (!result.success) {
+            error('Invalid game state received:', result.error)
+            return
+        }
+
         log(
-            'Forwarding game state from content-main-world to popup:',
-            message.data
+            'Forwarding validated game state from content-main-world to popup:',
+            result.data
         )
-        sendMessage('game-state', message.data, 'popup')
+        sendMessage('game-state', result.data, 'popup')
     })
 
     onMessage('query-game-state', (message) => {
