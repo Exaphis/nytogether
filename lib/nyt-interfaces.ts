@@ -38,6 +38,19 @@ export interface NYTStoreState {
             unfilledCount: number
         }
     ]
+    puzzle: {
+        data: {
+            meta: {
+                copyright: string
+                editor: string
+                id: number
+                publicationDate: string
+                publishStream: string
+            }
+        }
+        error: any
+        hasLoaded: boolean
+    }
     toolbar: {
         inPencilMode: boolean
         inRebusMode: boolean
