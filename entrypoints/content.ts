@@ -11,8 +11,10 @@ import {
     set,
     onDisconnect,
     onValue,
+    serverTimestamp,
     DataSnapshot,
     remove,
+    get,
 } from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
 import { NYTStoreStateSchema } from '@/lib/nyt-interfaces'
@@ -74,9 +76,20 @@ async function joinRoom({
 
     log('Joining room:', roomName, 'with username:', username)
 
-    // Add the new username, removing the old username if it exists
     try {
-        // Update to new structure: roomId/name/username/userId
+        // Create/update the xword room entry
+        const xwordRef = ref(database, `xwords/${roomName}`)
+        const xwordSnapshot = await get(xwordRef)
+
+        if (!xwordSnapshot.exists()) {
+            // New room
+            await set(xwordRef, {
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            })
+        }
+
+        // Add the member
         const memberRef = ref(database, `members/${roomName}/${username}`)
 
         // Set up automatic cleanup on disconnect
