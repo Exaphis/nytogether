@@ -52,6 +52,23 @@ function sendRoomState() {
     sendMessage('room-state', connectedRoomState, 'popup')
 }
 
+async function getGameState() {
+    const res = await sendMessage('query-game-state', {}, 'window')
+    if (res === null) {
+        error('No game state received from content-main-world')
+        return null
+    }
+
+    // Validate the game state using our Zod schema
+    const result = NYTStoreStateSchema.safeParse(res)
+    if (!result.success) {
+        error('Invalid game state received:', result.error)
+        return null
+    }
+
+    return result.data
+}
+
 async function joinRoom({
     roomName,
     username,
@@ -74,6 +91,12 @@ async function joinRoom({
         return
     }
 
+    const gameState = await getGameState()
+    if (gameState === null) {
+        error('No game state!')
+        return
+    }
+
     log('Joining room:', roomName, 'with username:', username)
 
     try {
@@ -87,6 +110,25 @@ async function joinRoom({
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             })
+        }
+
+        // Create/update the guesses entry
+        const guessesRef = ref(database, `guesses/${roomName}`)
+        const guessesSnapshot = await get(guessesRef)
+
+        if (!guessesSnapshot.exists()) {
+            // New room
+            let guesses: { [key: string]: any } = {}
+            for (const cell of gameState.cells) {
+                guesses[cell.index.toString()] = {
+                    letter: cell.guess,
+                    userId: user.uid,
+                    timestamp: serverTimestamp(),
+                    penciled: cell.penciled,
+                }
+            }
+            log('Setting guesses:', guesses)
+            await set(guessesRef, guesses)
         }
 
         // Add the member
@@ -205,33 +247,7 @@ async function main() {
 
     onMessage('query-game-state', async (message) => {
         log('Received game state request from popup')
-        try {
-            const gameState = await sendMessage(
-                'query-game-state',
-                {},
-                'window'
-            )
-            log(
-                'Forwarding game state request from popup to content-main-world',
-                gameState
-            )
-
-            if (gameState === null) {
-                log('Current game state is null')
-                return null
-            }
-
-            // Validate the game state using our Zod schema
-            const result = NYTStoreStateSchema.safeParse(gameState)
-            if (!result.success) {
-                error('Invalid game state received:', result.error)
-                return null
-            }
-
-            return result.data
-        } catch (err) {
-            error('Error getting game state:', err)
-        }
+        return await getGameState()
     })
 
     onMessage('join-room', (message) => {
