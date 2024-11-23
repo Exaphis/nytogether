@@ -44,7 +44,8 @@ let connectedRoomState: {
     username: string
     disconnectListeners: any[]
     guessesRef: any
-    members: { [userId: string]: { name: string } }
+    memberRef: any
+    members: { [userId: string]: { name: string; selection: number } }
     userId: string
 } | null = null
 
@@ -101,6 +102,7 @@ async function joinRoom({
     log('Joining room:', roomName, 'with username:', username)
 
     let guessesRef: any = null
+    let memberRef: any = null
     try {
         // Create/update the xword room entry
         const xwordRef = ref(database, `xwords/${roomName}`)
@@ -134,7 +136,7 @@ async function joinRoom({
         }
 
         // Add the member
-        const memberRef = ref(database, `members/${roomName}/${username}`)
+        memberRef = ref(database, `members/${roomName}/${username}`)
 
         // Set up automatic cleanup on disconnect
         onDisconnect(memberRef).remove()
@@ -142,6 +144,7 @@ async function joinRoom({
         // Add the member with new structure
         await set(memberRef, {
             userId: user.uid,
+            selection: gameState.selection.cell,
         })
         log('Successfully joined room')
     } catch (err) {
@@ -154,6 +157,7 @@ async function joinRoom({
     connectedRoomState = {
         roomName,
         username,
+        memberRef,
         guessesRef,
         disconnectListeners: [],
         members: {},
@@ -281,6 +285,20 @@ async function main() {
                 await set(connectedRoomState.guessesRef, guesses)
             } else {
                 log('No updates to guesses')
+            }
+
+            const existingMemberSnapshot = await get(
+                connectedRoomState.memberRef
+            )
+            const existingMember = existingMemberSnapshot.val()
+            if (existingMember.selection !== gameState.selection.cell) {
+                log('Updating selection:', gameState.selection.cell)
+                await set(connectedRoomState.memberRef, {
+                    userId: connectedRoomState.userId,
+                    selection: gameState.selection.cell,
+                })
+            } else {
+                log('No updates to selection')
             }
         }
 

@@ -66,6 +66,9 @@ export const NYTStoreStateSchema = z.object({
         isFilled: z.boolean(),
         isSolved: z.boolean(),
     }),
+    selection: z.object({
+        cell: z.number(),
+    }),
 })
 
 // Type inference from the schemas
