@@ -42,7 +42,8 @@ let database: any = null
 let connectedRoomState: {
     roomName: string
     username: string
-    disconnectRoomMemberListener: any
+    disconnectListeners: any[]
+    guessesRef: any
     members: { [userId: string]: { name: string } }
     userId: string
 } | null = null
@@ -99,6 +100,7 @@ async function joinRoom({
 
     log('Joining room:', roomName, 'with username:', username)
 
+    let guessesRef: any = null
     try {
         // Create/update the xword room entry
         const xwordRef = ref(database, `xwords/${roomName}`)
@@ -113,7 +115,7 @@ async function joinRoom({
         }
 
         // Create/update the guesses entry
-        const guessesRef = ref(database, `guesses/${roomName}`)
+        guessesRef = ref(database, `guesses/${roomName}`)
         const guessesSnapshot = await get(guessesRef)
 
         if (!guessesSnapshot.exists()) {
@@ -152,7 +154,8 @@ async function joinRoom({
     connectedRoomState = {
         roomName,
         username,
-        disconnectRoomMemberListener: null,
+        guessesRef,
+        disconnectListeners: [],
         members: {},
         userId: user.uid,
     }
@@ -160,20 +163,29 @@ async function joinRoom({
     // Update the member listener
     log('Setting up member listener for room:', roomName)
     const membersRef = ref(database, `members/${roomName}`)
-    connectedRoomState.disconnectRoomMemberListener = onValue(
-        membersRef,
-        (snapshot: DataSnapshot) => {
-            if (connectedRoomState === null) {
-                error('Room is disconnected!')
-                return
+    connectedRoomState.disconnectListeners.push(
+        onValue(
+            membersRef,
+            (snapshot: DataSnapshot) => {
+                if (connectedRoomState === null) {
+                    error('Room is disconnected!')
+                    return
+                }
+                connectedRoomState.members = snapshot.val() || {}
+                log('Updated members:', connectedRoomState.members)
+                sendRoomState()
+            },
+            (e: any) => {
+                error('Error setting up member listener:', e)
             }
-            connectedRoomState.members = snapshot.val() || {}
-            log('Updated members:', connectedRoomState.members)
-            sendRoomState()
-        },
-        (e: any) => {
-            error('Error setting up member listener:', e)
-        }
+        )
+    )
+
+    // Set up the guesses listener
+    connectedRoomState.disconnectListeners.push(
+        onValue(guessesRef, (snapshot: DataSnapshot) => {
+            log('Updated guesses:', snapshot.val())
+        })
     )
 
     sendRoomState()
@@ -193,10 +205,8 @@ async function leaveRoom() {
     )
     await remove(memberRef)
 
-    if (!connectedRoomState.disconnectRoomMemberListener) {
-        error('No disconnect room member listener!')
-    } else {
-        connectedRoomState.disconnectRoomMemberListener()
+    for (const disconnectListener of connectedRoomState.disconnectListeners) {
+        disconnectListener()
     }
     connectedRoomState = null
 
@@ -228,14 +238,50 @@ async function main() {
         return connectedRoomState
     })
 
-    onMessage('game-state', (message) => {
-        const gameState = message.data
-
+    onMessage('game-state', async (message) => {
         // Validate the game state using our Zod schema
-        const result = NYTStoreStateSchema.safeParse(gameState)
+        const result = NYTStoreStateSchema.safeParse(message.data)
         if (!result.success) {
             error('Invalid game state received:', result.error)
             return
+        }
+        const gameState = result.data
+
+        if (connectedRoomState !== null) {
+            const existingGuessesSnapshot = await get(
+                connectedRoomState.guessesRef
+            )
+            const existingGuesses = existingGuessesSnapshot.val()
+            let guesses: { [key: string]: any } = existingGuesses
+            let updated: boolean = false
+
+            for (const cell of gameState.cells) {
+                const newGuess = {
+                    letter: cell.guess,
+                    userId: connectedRoomState.userId,
+                    timestamp: serverTimestamp(),
+                    penciled: cell.penciled,
+                }
+
+                // if letter/penciled is the same as existing, skip
+                if (
+                    existingGuesses[cell.index.toString()].letter ===
+                        cell.guess &&
+                    existingGuesses[cell.index.toString()].penciled ===
+                        cell.penciled
+                ) {
+                    continue
+                }
+
+                guesses[cell.index.toString()] = newGuess
+                updated = true
+            }
+            if (updated) {
+                log('Setting guesses:', guesses)
+                await set(connectedRoomState.guessesRef, guesses)
+            } else {
+                log('No updates to guesses')
+            }
         }
 
         log(
