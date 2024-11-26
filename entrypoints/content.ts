@@ -17,7 +17,11 @@ import {
     get,
 } from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
-import { NYTStoreStateSchema, NYTStoreState } from '@/lib/nyt-interfaces'
+import {
+    NYTStoreStateSchema,
+    NYTStoreState,
+    Member,
+} from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content] ${message}`, ...args)
@@ -154,10 +158,34 @@ class RoomState {
             onValue(
                 membersRef,
                 (snapshot: DataSnapshot) => {
-                    if (this.data === null) {
-                        error('Room is disconnected!')
-                        return
+                    log('Updated members:', snapshot.val())
+
+                    // Update the selections on screen
+                    let selectedCellIds: number[] = []
+                    for (const [memberName, memberVal] of Object.entries(
+                        snapshot.val() || {}
+                    )) {
+                        const member = memberVal as Member
+                        if (
+                            memberName !== username &&
+                            member.selection !== null
+                        ) {
+                            selectedCellIds.push(member.selection)
+                        }
                     }
+
+                    const cellElems = document.querySelectorAll('.xwd__cell')
+                    for (let i = 0; i < cellElems.length; i++) {
+                        const cellElem = cellElems[i]
+                        const inputElem = cellElem.querySelector('rect')!
+
+                        if (selectedCellIds.includes(i)) {
+                            inputElem.style.fill = 'greenyellow'
+                        } else {
+                            inputElem.style.removeProperty('fill')
+                        }
+                    }
+
                     this.onRoomStateChange(this)
                 },
                 (e: any) => {
