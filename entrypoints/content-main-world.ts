@@ -6,7 +6,44 @@ const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content-main-world] ${message}`, ...args)
 }
 
-let globalStore: any = null
+class GameState {
+    private store: any
+
+    constructor(store: any) {
+        log('Constructing GameState with store:', store)
+
+        this.store = store
+
+        store.subscribe(() => {
+            log('Store changed:', store.getState())
+            sendMessage('game-state', store.getState(), 'content-script')
+        })
+
+        // Add caps lock detection
+        const handleCapsLock = (event: KeyboardEvent) => {
+            if (event.code === 'CapsLock') {
+                const capsLockState = event.getModifierState('CapsLock')
+                log(`Caps Lock ${capsLockState ? 'ON' : 'OFF'}`)
+                const state = this.store.getState() as NYTStoreState
+                log(`Pencil mode: ${state.toolbar.inPencilMode}`)
+                if (state.toolbar.inPencilMode !== capsLockState) {
+                    this.store.dispatch({
+                        type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                    })
+                }
+            }
+        }
+
+        document.addEventListener('keydown', handleCapsLock)
+        document.addEventListener('keyup', handleCapsLock)
+    }
+
+    getState() {
+        return this.store.getState()
+    }
+}
+
+let globalState: GameState | null = null
 
 const handleRedeem = (elem: Element): boolean => {
     // Open the redeem page if the user is logged in and does not have crossword access.
@@ -93,12 +130,7 @@ function handleGameStore(elem: Element): boolean {
         return false
     }
 
-    store.subscribe(() => {
-        log('Store changed:', store.getState())
-        sendMessage('game-state', store.getState(), 'content-script')
-    })
-
-    globalStore = store
+    globalState = new GameState(store)
     return true
 }
 
@@ -123,30 +155,12 @@ export default defineUnlistedScript(() => {
     observeElement('#hub-root > div.hub-welcome', handleRedeem)
     observeElement('main', handleGameStore)
 
-    // Add caps lock detection
-    const handleCapsLock = (event: KeyboardEvent) => {
-        if (event.code === 'CapsLock') {
-            const capsLockState = event.getModifierState('CapsLock')
-            log(`Caps Lock ${capsLockState ? 'ON' : 'OFF'}`)
-            const state = globalStore?.getState() as NYTStoreState
-            log(`Pencil mode: ${state.toolbar.inPencilMode}`)
-            if (state.toolbar.inPencilMode !== capsLockState) {
-                globalStore?.dispatch({
-                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
-                })
-            }
-        }
-    }
-
-    document.addEventListener('keydown', handleCapsLock)
-    document.addEventListener('keyup', handleCapsLock)
-
     onMessage('query-game-state', (message) => {
         log('Game state requested')
-        if (!globalStore) {
+        if (!globalState) {
             return null
         }
-        const state = globalStore.getState()
+        const state = globalState.getState()
         state.gameData = (window as any).gameData
         return state
     })

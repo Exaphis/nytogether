@@ -27,7 +27,6 @@ const error = (message: string, ...args: any[]) => {
     console.error(`[NYTogether/content] ${message}`, ...args)
 }
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
     apiKey: 'AIzaSyAlcRiK5QvylNbz1n-HZjIKrMAQvXI6qb4',
     authDomain: 'nytogether-cc58e.firebaseapp.com',
@@ -47,18 +46,18 @@ class RoomState {
         memberRef: any
     } | null
     database: any
-    onStateChange: (state: RoomState) => void
+    onRoomStateChange: (state: RoomState) => void
     // queryGameState must be a member function, not a global one.
     // Otherwise, we see "Browser.runtime.connect not implemented" errors.
     queryGameState: () => Promise<NYTStoreState | null>
 
     constructor(
-        onStateChange: (state: RoomState) => void,
+        onRoomStateChange: (state: RoomState) => void,
         queryGameState: () => Promise<NYTStoreState | null>,
         database: any
     ) {
         this.data = null
-        this.onStateChange = onStateChange
+        this.onRoomStateChange = onRoomStateChange
         this.queryGameState = queryGameState
         this.database = database
     }
@@ -148,7 +147,7 @@ class RoomState {
             disconnectListeners: [],
         }
 
-        // Update the member listener
+        // Set up the member listener
         log('Setting up member listener for room:', roomName)
         const membersRef = ref(this.database, `members/${roomName}`)
         this.data.disconnectListeners.push(
@@ -159,7 +158,7 @@ class RoomState {
                         error('Room is disconnected!')
                         return
                     }
-                    this.onStateChange(this)
+                    this.onRoomStateChange(this)
                 },
                 (e: any) => {
                     error('Error setting up member listener:', e)
@@ -171,11 +170,11 @@ class RoomState {
         this.data.disconnectListeners.push(
             onValue(guessesRef, (snapshot: DataSnapshot) => {
                 log('Updated guesses:', snapshot.val())
-                this.onStateChange(this)
+                this.onRoomStateChange(this)
             })
         )
 
-        this.onStateChange(this)
+        this.onRoomStateChange(this)
     }
 
     async leaveRoom() {
@@ -197,7 +196,7 @@ class RoomState {
         }
 
         this.data = null
-        this.onStateChange(this)
+        this.onRoomStateChange(this)
     }
 
     async onGameStateUpdate(gameState: NYTStoreState) {
@@ -207,10 +206,12 @@ class RoomState {
         }
 
         const currUid = getAuth().currentUser!.uid
+        log('Updating guesses for room with uid:', currUid)
+
         const existingGuessesSnapshot = await get(this.data.guessesRef)
         const existingGuesses = existingGuessesSnapshot.val()
-        let guesses: { [key: string]: any } = existingGuesses
-        let updated: boolean = false
+
+        let newGuesses: { [key: string]: any } = {}
 
         for (const cell of gameState.cells) {
             const newGuess = {
@@ -229,14 +230,19 @@ class RoomState {
                 continue
             }
 
-            guesses[cell.index.toString()] = newGuess
-            updated = true
+            newGuesses[cell.index.toString()] = newGuess
         }
-        if (updated) {
-            log('Setting guesses:', guesses)
-            await set(this.data.guessesRef, guesses)
-        } else {
+
+        if (Object.keys(newGuesses).length === 0) {
             log('No updates to guesses')
+        }
+
+        for (const [cell, guess] of Object.entries(newGuesses)) {
+            log('Setting guess:', cell, guess)
+            await set(
+                ref(this.database, `guesses/${this.data.roomName}/${cell}`),
+                guess
+            )
         }
 
         const existingMemberSnapshot = await get(this.data.memberRef)
@@ -307,8 +313,9 @@ async function main() {
 
     const roomState = new RoomState(
         async (state) => {
-            log('Sending connected room state:', state)
-            sendMessage('room-state', await state.getRoomData(), 'popup')
+            const roomData = await state.getRoomData()
+            log('Sending connected room state:', roomData)
+            sendMessage('room-state', roomData, 'popup')
         },
         getGameState,
         database
