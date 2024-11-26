@@ -50,7 +50,11 @@ function useRoomState() {
     React.useEffect(() => {
         const unlisten = onMessage('room-state', (message) => {
             log('Received room state update:', message)
-            setRoomState(message.data as unknown as RoomState)
+            if (message.data === null) {
+                setRoomState(null)
+            } else {
+                setRoomState(message.data as unknown as RoomState)
+            }
         })
 
         async function fetchInitialState() {

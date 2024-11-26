@@ -67,7 +67,7 @@ export const NYTStoreStateSchema = z.object({
         isSolved: z.boolean(),
     }),
     selection: z.object({
-        cell: z.number(),
+        cell: z.number().nullable(),
     }),
 })
 
