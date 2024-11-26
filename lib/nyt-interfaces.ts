@@ -74,3 +74,15 @@ export const NYTStoreStateSchema = z.object({
 // Type inference from the schemas
 export type NYTUser = z.infer<typeof NYTUserSchema>
 export type NYTStoreState = z.infer<typeof NYTStoreStateSchema>
+
+export interface Member {
+    userId: string
+    selection: number | null
+}
+
+export interface RoomState {
+    roomName: string
+    username: string
+    userId: string
+    members: Record<string, Member>
+}

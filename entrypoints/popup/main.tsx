@@ -16,21 +16,10 @@ import {
     FormLabel,
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
-import { NYTStoreState } from '@/lib/nyt-interfaces'
+import { NYTStoreState, RoomState } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
-}
-
-interface Member {
-    userId: string
-}
-
-interface RoomState {
-    roomName: string
-    username: string
-    userId: string
-    members: { [name: string]: Member }
 }
 
 async function sendMessageToTab(messageID: string, data: any) {
