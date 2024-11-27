@@ -12,6 +12,7 @@ export const NYTUserSchema = z.object({
 })
 
 export const NYTCellSchema = z.object({
+    answer: z.string().optional(),
     checked: z.boolean(),
     clues: z.array(z.number()),
     confirmed: z.boolean(),
@@ -69,6 +70,11 @@ export const NYTStoreStateSchema = z.object({
     selection: z.object({
         cell: z.number().nullable(),
     }),
+    user: z.object({
+        settings: z.object({
+            nyTogetherDiffVersion: z.number().optional(),
+        }),
+    }),
 })
 
 // Type inference from the schemas
@@ -85,4 +91,15 @@ export interface RoomState {
     username: string
     userId: string
     members: Record<string, Member>
+}
+
+export interface Cell {
+    letter: string
+    userId: string
+    timestamp: number
+    penciled: boolean
+}
+
+export interface RoomGuesses {
+    [cell: number]: Cell
 }
