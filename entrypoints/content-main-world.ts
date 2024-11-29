@@ -64,17 +64,19 @@ class GameState {
                 //     penciled: capsLockState,
                 // })
 
+                const updates: Record<number, Cell> = {}
                 for (const [cellId, cellData] of Object.entries(state.cells)) {
                     if (cellData.answer) {
                         log('Setting cell', cellId, cellData.answer)
-                        await this.setCell(parseInt(cellId), {
-                            letter: cellData.answer,
+                        updates[parseInt(cellId)] = {
+                            letter: 'a',
                             userId: '0',
                             timestamp: 0,
                             penciled: capsLockState,
-                        })
+                        }
                     }
                 }
+                await this.setCells(updates)
             }
         }
 
@@ -82,7 +84,7 @@ class GameState {
         document.addEventListener('keyup', handleCapsLock)
     }
 
-    private async setCell(cellId: number, cellState: Cell) {
+    private async setCells(cellUpdates: Record<number, Cell>) {
         function triggerInputChange(
             node: HTMLInputElement,
             inputValue: string
@@ -138,6 +140,34 @@ class GameState {
             return result
         }
 
+        const waitForState = async (
+            predicate: (state: NYTStoreState) => boolean,
+            timeout: number = 1000
+        ): Promise<NYTStoreState | null> => {
+            return Promise.race([
+                new Promise<NYTStoreState>((resolve) => {
+                    // Check current state first
+                    const currentState = this.store.getState()
+                    if (predicate(currentState)) {
+                        resolve(currentState)
+                        return
+                    }
+
+                    // Set up subscription to store
+                    const unsubscribe = this.store.subscribe(() => {
+                        const state = this.store.getState()
+                        if (predicate(state)) {
+                            unsubscribe()
+                            resolve(state)
+                        }
+                    })
+                }),
+                new Promise<null>((resolve) => {
+                    setTimeout(() => resolve(null), timeout)
+                }),
+            ])
+        }
+
         this.diffVersion++
         const storeState = this.store.getState()
         if (storeState.status.isSolved) {
@@ -147,58 +177,108 @@ class GameState {
 
         const prevSelection = storeState.selection.cell
         const inPencilMode = storeState.toolbar.inPencilMode
-
-        // TODO: restore rebus selection state (cursor position, selection if any)
         const inRebusMode = storeState.toolbar.inRebusMode
         const rebusContents = storeState.toolbar.rebusValue
+
+        // Save rebus state if needed
         if (inRebusMode) {
             log('In rebus mode already!')
             const rebusInput = (await waitForElement(
                 '#rebus-input'
             )) as HTMLInputElement
-            // Save the change by calling the onBlur handler
             rebusInput.blur()
         }
+        // Group cells by pencil state to minimize pencil mode toggles
+        const penciledCells: Record<number, Cell> = {}
+        const unpenciledCells: Record<number, Cell> = {}
 
-        // First, select the cell to change
-        this.store.dispatch({
-            type: 'crossword/selection/SELECT_CELL',
-            payload: {
-                index: cellId,
-            },
-        })
-
-        // Then, toggle pencil mode if needed
-        if (cellState.penciled !== inPencilMode) {
-            this.store.dispatch({
-                type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
-            })
+        for (const [cellId, cell] of Object.entries(cellUpdates)) {
+            const numericCellId = parseInt(cellId)
+            if (cell.penciled) {
+                penciledCells[numericCellId] = cell
+            } else {
+                unpenciledCells[numericCellId] = cell
+            }
         }
 
-        // Then, enable rebus mode
-        // Select the button with aria-label="Rebus"
         const rebusButton = document.querySelector(
             '[aria-label="Rebus"]'
         ) as HTMLButtonElement
-        rebusButton.click()
 
-        // Wait for the rebus input to appear
-        const rebusInput = (await waitForElement(
-            '#rebus-input'
-        )) as HTMLInputElement
-        log('Setting rebus input to', cellState.letter)
-        triggerInputChange(rebusInput, cellState.letter)
-        // Save the change by calling the onBlur handler
-        rebusInput.blur()
+        let currPencilMode = inPencilMode
 
-        // Re-toggle pencil mode if we changed it
-        if (cellState.penciled !== inPencilMode) {
+        if (Object.keys(penciledCells).length > 0) {
+            if (!currPencilMode) {
+                this.store.dispatch({
+                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                })
+                currPencilMode = true
+            }
+
+            for (const [cellId, cell] of Object.entries(penciledCells)) {
+                this.store.dispatch({
+                    type: 'crossword/selection/SELECT_CELL',
+                    payload: {
+                        index: parseInt(cellId),
+                    },
+                })
+
+                // Enable rebus mode and set value
+                rebusButton.click()
+                const rebusInput = (await waitForElement(
+                    '#rebus-input'
+                )) as HTMLInputElement
+                triggerInputChange(rebusInput, cell.letter)
+                rebusInput.blur()
+
+                await waitForState(
+                    (state) =>
+                        state.cells[parseInt(cellId)].guess.toUpperCase() ===
+                        cell.letter.toUpperCase()
+                )
+            }
+        }
+
+        if (Object.keys(unpenciledCells).length > 0) {
+            if (currPencilMode) {
+                this.store.dispatch({
+                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                })
+                currPencilMode = false
+            }
+
+            for (const [cellId, cell] of Object.entries(unpenciledCells)) {
+                this.store.dispatch({
+                    type: 'crossword/selection/SELECT_CELL',
+                    payload: {
+                        index: parseInt(cellId),
+                    },
+                })
+
+                // Enable rebus mode and set value
+                rebusButton.click()
+                const rebusInput = (await waitForElement(
+                    '#rebus-input'
+                )) as HTMLInputElement
+                triggerInputChange(rebusInput, cell.letter)
+                rebusInput.blur()
+
+                await waitForState(
+                    (state) =>
+                        state.cells[parseInt(cellId)].guess.toUpperCase() ===
+                        cell.letter.toUpperCase()
+                )
+            }
+        }
+
+        // Restore pencil mode if we changed it
+        if (currPencilMode !== inPencilMode) {
             this.store.dispatch({
                 type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
             })
         }
 
-        // Restore the selected cell
+        // Restore selection
         this.store.dispatch({
             type: 'crossword/selection/SELECT_CELL',
             payload: {
@@ -206,6 +286,7 @@ class GameState {
             },
         })
 
+        // Restore rebus state if needed
         if (inRebusMode) {
             rebusButton.click()
             const rebusInput = (await waitForElement(
