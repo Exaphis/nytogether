@@ -207,15 +207,20 @@ class GameState {
 
         let currPencilMode = inPencilMode
 
-        if (Object.keys(penciledCells).length > 0) {
-            if (!currPencilMode) {
+        const fillCells = async (
+            cells: Record<number, Cell>,
+            shouldBePenciled: boolean
+        ) => {
+            if (Object.keys(cells).length === 0) return
+
+            if (currPencilMode !== shouldBePenciled) {
                 this.store.dispatch({
                     type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
                 })
-                currPencilMode = true
+                currPencilMode = shouldBePenciled
             }
 
-            for (const [cellId, cell] of Object.entries(penciledCells)) {
+            for (const [cellId, cell] of Object.entries(cells)) {
                 this.store.dispatch({
                     type: 'crossword/selection/SELECT_CELL',
                     payload: {
@@ -239,37 +244,8 @@ class GameState {
             }
         }
 
-        if (Object.keys(unpenciledCells).length > 0) {
-            if (currPencilMode) {
-                this.store.dispatch({
-                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
-                })
-                currPencilMode = false
-            }
-
-            for (const [cellId, cell] of Object.entries(unpenciledCells)) {
-                this.store.dispatch({
-                    type: 'crossword/selection/SELECT_CELL',
-                    payload: {
-                        index: parseInt(cellId),
-                    },
-                })
-
-                // Enable rebus mode and set value
-                rebusButton.click()
-                const rebusInput = (await waitForElement(
-                    '#rebus-input'
-                )) as HTMLInputElement
-                triggerInputChange(rebusInput, cell.letter)
-                rebusInput.blur()
-
-                await waitForState(
-                    (state) =>
-                        state.cells[parseInt(cellId)].guess.toUpperCase() ===
-                        cell.letter.toUpperCase()
-                )
-            }
-        }
+        await fillCells(penciledCells, true)
+        await fillCells(unpenciledCells, false)
 
         // Restore pencil mode if we changed it
         if (currPencilMode !== inPencilMode) {
