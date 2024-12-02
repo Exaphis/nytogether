@@ -64,19 +64,18 @@ class GameState {
                 //     penciled: capsLockState,
                 // })
 
-                const updates: Record<number, Cell> = {}
+                const board: RoomGuesses = {}
                 for (const [cellId, cellData] of Object.entries(state.cells)) {
                     if (cellData.answer) {
-                        log('Setting cell', cellId, cellData.answer)
-                        updates[parseInt(cellId)] = {
-                            letter: 'a',
+                        board[parseInt(cellId)] = {
+                            letter: cellData.answer,
                             userId: '0',
                             timestamp: 0,
                             penciled: capsLockState,
                         }
                     }
                 }
-                await this.setCells(updates)
+                await this.setBoard(board)
             }
         }
 
@@ -207,20 +206,15 @@ class GameState {
 
         let currPencilMode = inPencilMode
 
-        const fillCells = async (
-            cells: Record<number, Cell>,
-            shouldBePenciled: boolean
-        ) => {
-            if (Object.keys(cells).length === 0) return
-
-            if (currPencilMode !== shouldBePenciled) {
+        if (Object.keys(penciledCells).length > 0) {
+            if (!currPencilMode) {
                 this.store.dispatch({
                     type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
                 })
-                currPencilMode = shouldBePenciled
+                currPencilMode = true
             }
 
-            for (const [cellId, cell] of Object.entries(cells)) {
+            for (const [cellId, cell] of Object.entries(penciledCells)) {
                 this.store.dispatch({
                     type: 'crossword/selection/SELECT_CELL',
                     payload: {
@@ -244,8 +238,37 @@ class GameState {
             }
         }
 
-        await fillCells(penciledCells, true)
-        await fillCells(unpenciledCells, false)
+        if (Object.keys(unpenciledCells).length > 0) {
+            if (currPencilMode) {
+                this.store.dispatch({
+                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                })
+                currPencilMode = false
+            }
+
+            for (const [cellId, cell] of Object.entries(unpenciledCells)) {
+                this.store.dispatch({
+                    type: 'crossword/selection/SELECT_CELL',
+                    payload: {
+                        index: parseInt(cellId),
+                    },
+                })
+
+                // Enable rebus mode and set value
+                rebusButton.click()
+                const rebusInput = (await waitForElement(
+                    '#rebus-input'
+                )) as HTMLInputElement
+                triggerInputChange(rebusInput, cell.letter)
+                rebusInput.blur()
+
+                await waitForState(
+                    (state) =>
+                        state.cells[parseInt(cellId)].guess.toUpperCase() ===
+                        cell.letter.toUpperCase()
+                )
+            }
+        }
 
         // Restore pencil mode if we changed it
         if (currPencilMode !== inPencilMode) {
@@ -279,7 +302,29 @@ class GameState {
         })
     }
 
-    setBoard(board: RoomGuesses) {}
+    setBoard(board: RoomGuesses) {
+        const state = this.store.getState() as NYTStoreState
+
+        const diffCells: Record<number, Cell> = {}
+        for (const [cellId, cell] of Object.entries(board) as [
+            string,
+            Cell
+        ][]) {
+            const cellIdNum = parseInt(cellId)
+            if (state.cells[cellIdNum].guess !== cell.letter) {
+                diffCells[cellIdNum] = cell
+            }
+        }
+
+        log('Setting board:', diffCells)
+        this.setCells(diffCells)
+            .then(() => {
+                log('Board set.')
+            })
+            .catch((err) => {
+                log('Error setting board:', err)
+            })
+    }
 
     getState() {
         return this.store.getState()
