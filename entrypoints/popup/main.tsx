@@ -140,6 +140,9 @@ function Contents() {
                         Room: {roomState.roomName}
                     </h2>
                     <p className="text-sm text-muted-foreground">
+                        Puzzle: {roomState.gameId}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
                         You are: {roomState.username}
                     </p>
                 </div>

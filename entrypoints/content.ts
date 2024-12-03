@@ -22,6 +22,7 @@ import {
     NYTStoreState,
     Member,
     RoomGuesses,
+    RoomState as IRoomState,
 } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
@@ -45,6 +46,7 @@ const firebaseConfig = {
 class RoomState {
     private data: {
         roomName: string
+        gameId: string
         username: string
         disconnectListeners: any[]
         guessesRef: any
@@ -70,8 +72,8 @@ class RoomState {
         this.database = database
     }
 
-    async connect(roomName: string, username: string) {
-        if (!roomName || !username) {
+    async connect(requestedRoomName: string, username: string) {
+        if (!requestedRoomName || !username) {
             error('Cannot join room: missing room name or username')
             return
         }
@@ -91,6 +93,11 @@ class RoomState {
             error('No game state!')
             return
         }
+
+        // update requested room name to the actual room name
+        // by adding a suffix for the puzzle ID
+        const gameSuffix = `${gameState.puzzle.data.meta.publishStream}-${gameState.puzzle.data.meta.publicationDate}`
+        const roomName = `${requestedRoomName}-${gameSuffix}`
 
         log('Joining room:', roomName, 'with username:', username)
 
@@ -148,7 +155,8 @@ class RoomState {
         // Set the room state up before setting up the member listener
         // so that we don't miss any updates
         this.data = {
-            roomName,
+            roomName: requestedRoomName,
+            gameId: gameSuffix,
             username,
             memberRef,
             guessesRef,
@@ -291,7 +299,7 @@ class RoomState {
         }
     }
 
-    public async getRoomData() {
+    public async getRoomData(): Promise<IRoomState | null> {
         if (this.data === null) {
             return null
         }
@@ -300,6 +308,7 @@ class RoomState {
         const members = membersSnapshot.val() || {}
         return {
             roomName: this.data.roomName,
+            gameId: this.data.gameId,
             username: this.data.username,
             userId: getAuth().currentUser!.uid,
             members,
@@ -348,7 +357,7 @@ async function main() {
         async (state) => {
             const roomData = await state.getRoomData()
             log('Sending connected room state:', roomData)
-            sendMessage('room-state', roomData, 'popup')
+            sendMessage('room-state', roomData as any, 'popup')
         },
         getGameState,
         (board: RoomGuesses) => {
