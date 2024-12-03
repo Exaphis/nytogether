@@ -21,6 +21,7 @@ import {
     NYTStoreStateSchema,
     NYTStoreState,
     Member,
+    RoomGuesses,
 } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
@@ -54,15 +55,18 @@ class RoomState {
     // queryGameState must be a member function, not a global one.
     // Otherwise, we see "Browser.runtime.connect not implemented" errors.
     queryGameState: () => Promise<NYTStoreState | null>
+    setBoard: (board: RoomGuesses) => void
 
     constructor(
         onRoomStateChange: (state: RoomState) => void,
         queryGameState: () => Promise<NYTStoreState | null>,
+        setBoard: (board: RoomGuesses) => void,
         database: any
     ) {
         this.data = null
         this.onRoomStateChange = onRoomStateChange
         this.queryGameState = queryGameState
+        this.setBoard = setBoard
         this.database = database
     }
 
@@ -198,6 +202,7 @@ class RoomState {
         this.data.disconnectListeners.push(
             onValue(guessesRef, (snapshot: DataSnapshot) => {
                 log('Updated guesses:', snapshot.val())
+                this.setBoard(snapshot.val() as RoomGuesses)
                 this.onRoomStateChange(this)
             })
         )
@@ -346,6 +351,9 @@ async function main() {
             sendMessage('room-state', roomData, 'popup')
         },
         getGameState,
+        (board: RoomGuesses) => {
+            sendMessage('set-board', board as any, 'window')
+        },
         database
     )
 

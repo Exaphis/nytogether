@@ -32,7 +32,7 @@ class GameState {
                 state.user.settings.nyTogetherDiffVersion !== this.diffVersion
             ) {
                 log(
-                    'Diff version mismatch!',
+                    'Aborting state update: Diff version mismatch!',
                     state.user.settings.nyTogetherDiffVersion,
                     this.diffVersion
                 )
@@ -143,7 +143,7 @@ class GameState {
             predicate: (state: NYTStoreState) => boolean,
             timeout: number = 1000
         ): Promise<NYTStoreState | null> => {
-            return Promise.race([
+            const result = Promise.race([
                 new Promise<NYTStoreState>((resolve) => {
                     // Check current state first
                     const currentState = this.store.getState()
@@ -165,6 +165,10 @@ class GameState {
                     setTimeout(() => resolve(null), timeout)
                 }),
             ])
+            if (result === null) {
+                throw new Error('Timeout waiting for state')
+            }
+            return result
         }
 
         this.diffVersion++
@@ -179,9 +183,12 @@ class GameState {
         const inRebusMode = storeState.toolbar.inRebusMode
         const rebusContents = storeState.toolbar.rebusValue
 
+        const rebusButton = document.querySelector(
+            '[aria-label="Rebus"]'
+        ) as HTMLButtonElement
+
         // Save rebus state if needed
         if (inRebusMode) {
-            log('In rebus mode already!')
             const rebusInput = (await waitForElement(
                 '#rebus-input'
             )) as HTMLInputElement
@@ -200,35 +207,33 @@ class GameState {
             }
         }
 
-        const rebusButton = document.querySelector(
-            '[aria-label="Rebus"]'
-        ) as HTMLButtonElement
-
         let currPencilMode = inPencilMode
 
-        if (Object.keys(penciledCells).length > 0) {
-            if (!currPencilMode) {
+        const fillCells = async (
+            cells: Record<number, Cell>,
+            penciled: boolean
+        ) => {
+            if (Object.keys(cells).length === 0) return
+
+            if (currPencilMode !== penciled) {
                 this.store.dispatch({
                     type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
                 })
-                currPencilMode = true
+                currPencilMode = penciled
             }
 
-            for (const [cellId, cell] of Object.entries(penciledCells)) {
+            for (const [cellId, cell] of Object.entries(cells)) {
                 this.store.dispatch({
                     type: 'crossword/selection/SELECT_CELL',
-                    payload: {
-                        index: parseInt(cellId),
-                    },
+                    payload: { index: parseInt(cellId) },
                 })
 
-                // Enable rebus mode and set value
                 rebusButton.click()
                 const rebusInput = (await waitForElement(
                     '#rebus-input'
                 )) as HTMLInputElement
                 triggerInputChange(rebusInput, cell.letter)
-                rebusInput.blur()
+                rebusButton.click() // confirm input
 
                 await waitForState(
                     (state) =>
@@ -238,37 +243,8 @@ class GameState {
             }
         }
 
-        if (Object.keys(unpenciledCells).length > 0) {
-            if (currPencilMode) {
-                this.store.dispatch({
-                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
-                })
-                currPencilMode = false
-            }
-
-            for (const [cellId, cell] of Object.entries(unpenciledCells)) {
-                this.store.dispatch({
-                    type: 'crossword/selection/SELECT_CELL',
-                    payload: {
-                        index: parseInt(cellId),
-                    },
-                })
-
-                // Enable rebus mode and set value
-                rebusButton.click()
-                const rebusInput = (await waitForElement(
-                    '#rebus-input'
-                )) as HTMLInputElement
-                triggerInputChange(rebusInput, cell.letter)
-                rebusInput.blur()
-
-                await waitForState(
-                    (state) =>
-                        state.cells[parseInt(cellId)].guess.toUpperCase() ===
-                        cell.letter.toUpperCase()
-                )
-            }
-        }
+        await fillCells(penciledCells, true)
+        await fillCells(unpenciledCells, false)
 
         // Restore pencil mode if we changed it
         if (currPencilMode !== inPencilMode) {
@@ -304,6 +280,10 @@ class GameState {
 
     setBoard(board: RoomGuesses) {
         const state = this.store.getState() as NYTStoreState
+        if (state.user.settings.nyTogetherDiffVersion !== this.diffVersion) {
+            log('Aborting setBoard: Diff version mismatch!')
+            return
+        }
 
         const diffCells: Record<number, Cell> = {}
         for (const [cellId, cell] of Object.entries(board) as [
@@ -451,5 +431,10 @@ export default defineUnlistedScript(() => {
         const state = globalState.getState()
         state.gameData = (window as any).gameData
         return state
+    })
+
+    onMessage('set-board', (message) => {
+        log('Setting board:', message.data)
+        globalState?.setBoard(message.data as unknown as RoomGuesses)
     })
 })
