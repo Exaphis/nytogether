@@ -16,7 +16,7 @@ import {
     FormLabel,
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
-import { NYTStoreState, RoomState } from '@/lib/nyt-interfaces'
+import { AutoJoinState, NYTStoreState, RoomState } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
@@ -91,6 +91,34 @@ function useGameState() {
     return gameState
 }
 
+function useAutoJoinState() {
+    const [autoJoin, setAutoJoin] = React.useState<AutoJoinState | null>(null)
+    const [autoJoinItem, setAutoJoinItem] = React.useState<any>(null)
+
+    React.useEffect(() => {
+        const item = storage.defineItem<AutoJoinState | null>(
+            'local:autojoin',
+            {
+                fallback: null,
+            }
+        )
+        setAutoJoinItem(item)
+        item.getValue().then(setAutoJoin)
+        return item.watch((value) => {
+            setAutoJoin(value)
+        })
+    }, [setAutoJoinItem])
+
+    const setAutoJoinValue = React.useCallback(
+        async (value: AutoJoinState | null) => {
+            await autoJoinItem.setValue(value)
+        },
+        [autoJoinItem]
+    )
+
+    return [autoJoin, setAutoJoinValue] as const
+}
+
 const roomFormSchema = z.object({
     displayName: z.string().min(1, { message: 'Display name is required' }),
     roomName: z.string().min(1, { message: 'Room name is required' }),
@@ -100,6 +128,7 @@ const roomFormSchema = z.object({
 function Contents() {
     const roomState = useRoomState()
     const gameState = useGameState()
+    const [autoJoin, setAutoJoin] = useAutoJoinState()
 
     const form = useForm<z.infer<typeof roomFormSchema>>({
         resolver: zodResolver(roomFormSchema),
@@ -110,12 +139,35 @@ function Contents() {
         },
     })
 
+    React.useEffect(() => {
+        if (autoJoin) {
+            log('Joining room with autojoin', autoJoin)
+            sendMessageToTab('join-room', {
+                roomName: autoJoin.roomName,
+                username: autoJoin.displayName,
+            })
+        }
+    }, [autoJoin])
+
     async function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
+        setAutoJoin(
+            data.autoJoin
+                ? {
+                      roomName: data.roomName,
+                      displayName: data.displayName,
+                  }
+                : null
+        )
         await sendMessageToTab('join-room', {
             roomName: data.roomName,
             username: data.displayName,
         })
+    }
+
+    function leaveRoom() {
+        setAutoJoin(null)
+        sendMessageToTab('leave-room', {})
     }
 
     if (gameState === null) {
@@ -166,9 +218,7 @@ function Contents() {
                         ))}
                     </div>
                 </div>
-                <Button onClick={() => sendMessageToTab('leave-room', {})}>
-                    Leave room
-                </Button>
+                <Button onClick={leaveRoom}>Leave room</Button>
             </div>
         )
     }

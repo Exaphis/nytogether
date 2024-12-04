@@ -11,6 +11,10 @@ const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content-main-world] ${message}`, ...args)
 }
 
+const error = (message: string, ...args: any[]) => {
+    console.error(`[NYTogether/content-main-world] ${message}`, ...args)
+}
+
 class GameState {
     private store: any
     private diffVersion: number = 0
@@ -19,6 +23,8 @@ class GameState {
         log('Constructing GameState with store:', store)
 
         this.store = store
+        sendMessage('game-state', store.getState(), 'content-script')
+
         store.dispatch({
             type: 'crossword/user/CHANGE_SETTING',
             payload: {
@@ -426,6 +432,7 @@ export default defineUnlistedScript(() => {
     onMessage('query-game-state', (message) => {
         log('Game state requested')
         if (!globalState) {
+            error('globalState is not initialized')
             return null
         }
         const state = globalState.getState()

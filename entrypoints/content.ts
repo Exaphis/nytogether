@@ -23,6 +23,7 @@ import {
     Member,
     RoomGuesses,
     RoomState as IRoomState,
+    AutoJoinState,
 } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
@@ -58,6 +59,7 @@ class RoomState {
     // Otherwise, we see "Browser.runtime.connect not implemented" errors.
     queryGameState: () => Promise<NYTStoreState | null>
     setBoard: (board: RoomGuesses) => void
+    receivedInitialGameState: boolean
 
     constructor(
         onRoomStateChange: (state: RoomState) => void,
@@ -70,6 +72,7 @@ class RoomState {
         this.queryGameState = queryGameState
         this.setBoard = setBoard
         this.database = database
+        this.receivedInitialGameState = false
     }
 
     async connect(requestedRoomName: string, username: string) {
@@ -241,8 +244,27 @@ class RoomState {
     }
 
     async onGameStateUpdate(gameState: NYTStoreState) {
+        if (!this.receivedInitialGameState) {
+            log('This is the first game state update! Checking autojoin')
+            const item = storage.defineItem<AutoJoinState | null>(
+                'local:autojoin',
+                {
+                    fallback: null,
+                }
+            )
+            const autoJoin = await item.getValue()
+            log('Autojoin state:', autoJoin)
+            if (autoJoin !== null) {
+                log('Autojoining room:', autoJoin.roomName)
+                await this.connect(autoJoin.roomName, autoJoin.displayName)
+            } else {
+                log('No autojoin state found')
+            }
+        }
+
+        this.receivedInitialGameState = true
         if (this.data === null) {
-            error('Not in a room, skipping game state update')
+            log('Not in a room, skipping game state update')
             return
         }
 

@@ -104,3 +104,8 @@ export interface Cell {
 export interface RoomGuesses {
     [cell: number]: Cell
 }
+
+export interface AutoJoinState {
+    roomName: string
+    displayName: string
+}

@@ -11,6 +11,7 @@ export default defineConfig({
                 matches: ['*://*.nytimes.com/*'],
             },
         ],
+        permissions: ['storage'],
     },
     runner: {
         chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
