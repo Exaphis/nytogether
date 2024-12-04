@@ -158,7 +158,7 @@ class RoomState {
         // Set the room state up before setting up the member listener
         // so that we don't miss any updates
         this.data = {
-            roomName: requestedRoomName,
+            roomName,
             gameId: gameSuffix,
             username,
             memberRef,
