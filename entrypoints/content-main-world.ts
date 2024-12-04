@@ -23,7 +23,10 @@ class GameState {
         log('Constructing GameState with store:', store)
 
         this.store = store
-        sendMessage('game-state', store.getState(), 'content-script')
+        const state = store.getState()
+        if (state.transient.isSynced) {
+            sendMessage('game-state', store.getState(), 'content-script')
+        }
 
         store.dispatch({
             type: 'crossword/user/CHANGE_SETTING',
@@ -34,6 +37,10 @@ class GameState {
 
         store.subscribe(() => {
             const state = store.getState()
+            if (!state.transient.isSynced) {
+                log('Aborting state update: store.transient.isSynced is false')
+                return
+            }
             if (
                 state.user.settings.nyTogetherDiffVersion !== this.diffVersion
             ) {
@@ -177,7 +184,6 @@ class GameState {
             return result
         }
 
-        this.diffVersion++
         const storeState = this.store.getState()
         if (storeState.status.isSolved) {
             log('Game is already solved!')
@@ -290,6 +296,7 @@ class GameState {
             log('Aborting setBoard: Diff version mismatch!')
             return
         }
+        this.diffVersion++
 
         const diffCells: Record<number, Cell> = {}
         for (const [cellId, cell] of Object.entries(board) as [
@@ -297,7 +304,10 @@ class GameState {
             Cell
         ][]) {
             const cellIdNum = parseInt(cellId)
-            if (state.cells[cellIdNum].guess !== cell.letter) {
+            if (
+                state.cells[cellIdNum].guess !== cell.letter ||
+                state.cells[cellIdNum].penciled !== cell.penciled
+            ) {
                 diffCells[cellIdNum] = cell
             }
         }

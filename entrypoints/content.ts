@@ -52,6 +52,7 @@ class RoomState {
         disconnectListeners: any[]
         guessesRef: any
         memberRef: any
+        receivedInitialBoardState: boolean
     } | null
     database: any
     onRoomStateChange: (state: RoomState) => void
@@ -64,7 +65,7 @@ class RoomState {
     constructor(
         onRoomStateChange: (state: RoomState) => void,
         queryGameState: () => Promise<NYTStoreState | null>,
-        setBoard: (board: RoomGuesses) => void,
+        setBoard: (board: RoomGuesses) => Promise<void>,
         database: any
     ) {
         this.data = null
@@ -164,6 +165,7 @@ class RoomState {
             memberRef,
             guessesRef,
             disconnectListeners: [],
+            receivedInitialBoardState: false,
         }
 
         // Set up the member listener
@@ -211,9 +213,10 @@ class RoomState {
 
         // Set up the guesses listener
         this.data.disconnectListeners.push(
-            onValue(guessesRef, (snapshot: DataSnapshot) => {
+            onValue(guessesRef, async (snapshot: DataSnapshot) => {
                 log('Updated guesses:', snapshot.val())
-                this.setBoard(snapshot.val() as RoomGuesses)
+                await this.setBoard(snapshot.val() as RoomGuesses)
+                this.data!.receivedInitialBoardState = true
                 this.onRoomStateChange(this)
             })
         )
@@ -265,6 +268,16 @@ class RoomState {
         this.receivedInitialGameState = true
         if (this.data === null) {
             log('Not in a room, skipping game state update')
+            return
+        }
+
+        if (!this.data.receivedInitialBoardState) {
+            // We haven't received the initial board state yet.
+            // This happens when we first join the room.
+            // Ignore updates until then to prevent a feedback loop occuring
+            // where we send a guess to the server based on some previous state
+            // that hasn't been updated to the server state yet.
+            log('Not received initial board state, skipping game state update')
             return
         }
 
@@ -382,8 +395,8 @@ async function main() {
             sendMessage('room-state', roomData as any, 'popup')
         },
         getGameState,
-        (board: RoomGuesses) => {
-            sendMessage('set-board', board as any, 'window')
+        async (board: RoomGuesses) => {
+            await sendMessage('set-board', board as any, 'window')
         },
         database
     )
