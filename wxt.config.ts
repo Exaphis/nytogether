@@ -1,4 +1,4 @@
-import { defineConfig } from 'wxt'
+import { defineConfig, defineRunnerConfig } from 'wxt'
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -11,5 +11,8 @@ export default defineConfig({
                 matches: ['*://*.nytimes.com/*'],
             },
         ],
+    },
+    runner: {
+        chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
     },
 })
