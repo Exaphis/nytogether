@@ -128,7 +128,7 @@ const roomFormSchema = z.object({
 function Contents() {
     const roomState = useRoomState()
     const gameState = useGameState()
-    const [autoJoin, setAutoJoin] = useAutoJoinState()
+    const [, setAutoJoin] = useAutoJoinState()
 
     const form = useForm<z.infer<typeof roomFormSchema>>({
         resolver: zodResolver(roomFormSchema),
@@ -138,16 +138,6 @@ function Contents() {
             autoJoin: false,
         },
     })
-
-    React.useEffect(() => {
-        if (autoJoin) {
-            log('Joining room with autojoin', autoJoin)
-            sendMessageToTab('join-room', {
-                roomName: autoJoin.roomName,
-                username: autoJoin.displayName,
-            })
-        }
-    }, [autoJoin])
 
     async function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
@@ -189,7 +179,7 @@ function Contents() {
             <div className="flex flex-col gap-4 items-start">
                 <div className="flex flex-col gap-2 items-start">
                     <h2 className="font-medium text-lg">
-                        Room: {roomState.roomName}
+                        Room: {roomState.requestedRoomName}
                     </h2>
                     <p className="text-sm text-muted-foreground">
                         Puzzle: {roomState.gameId}

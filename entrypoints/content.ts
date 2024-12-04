@@ -47,6 +47,7 @@ const firebaseConfig = {
 class RoomState {
     private data: {
         roomName: string
+        requestedRoomName: string
         gameId: string
         username: string
         disconnectListeners: any[]
@@ -160,6 +161,7 @@ class RoomState {
         // so that we don't miss any updates
         this.data = {
             roomName,
+            requestedRoomName,
             gameId: gameSuffix,
             username,
             memberRef,
@@ -343,6 +345,7 @@ class RoomState {
         const members = membersSnapshot.val() || {}
         return {
             roomName: this.data.roomName,
+            requestedRoomName: this.data.requestedRoomName,
             gameId: this.data.gameId,
             username: this.data.username,
             userId: getAuth().currentUser!.uid,

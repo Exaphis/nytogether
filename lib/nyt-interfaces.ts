@@ -88,6 +88,7 @@ export interface Member {
 
 export interface RoomState {
     roomName: string
+    requestedRoomName: string
     gameId: string // puzzle ID
     username: string
     userId: string
