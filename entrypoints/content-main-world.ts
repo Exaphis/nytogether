@@ -422,9 +422,16 @@ function observeElement(selector: string, handler: (elem: Element) => boolean) {
     })
 }
 
-export default defineUnlistedScript(() => {
-    log('Initialized.')
-    setNamespace('nytogether')
+function initialize() {
+    if (globalState) {
+        return
+    }
+
+    try {
+        setNamespace('nytogether')
+    } catch (err) {}
+
+    log('Setting up observers...')
 
     observeElement('#hub-root > div.hub-welcome', handleRedeem)
     observeElement('main', handleGameStore)
@@ -443,5 +450,21 @@ export default defineUnlistedScript(() => {
     onMessage('set-board', (message) => {
         log('Setting board:', message.data)
         globalState?.setBoard(message.data as unknown as RoomGuesses)
+    })
+
+    log('Initialized.')
+}
+
+export default defineUnlistedScript(() => {
+    initialize()
+
+    // Re-run setup on navigation because this function may not be called
+    // on page navigation (since NYT Games is an SPA)
+    const navigationObserver = new MutationObserver((mutations) => {
+        initialize()
+    })
+    navigationObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
     })
 })
