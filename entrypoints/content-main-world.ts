@@ -62,6 +62,38 @@ class GameState {
         document.addEventListener('keyup', handleCapsLock)
     }
 
+    private async waitForState(
+        predicate: (state: NYTStoreState) => boolean,
+        timeout: number = 1000
+    ): Promise<NYTStoreState | null> {
+        const result = Promise.race([
+            new Promise<NYTStoreState>((resolve) => {
+                // Check current state first
+                const currentState = this.store.getState()
+                if (predicate(currentState)) {
+                    resolve(currentState)
+                    return
+                }
+
+                // Set up subscription to store
+                const unsubscribe = this.store.subscribe(() => {
+                    const state = this.store.getState()
+                    if (predicate(state)) {
+                        unsubscribe()
+                        resolve(state)
+                    }
+                })
+            }),
+            new Promise<null>((resolve) => {
+                setTimeout(() => resolve(null), timeout)
+            }),
+        ])
+        if (result === null) {
+            throw new Error('Timeout waiting for state')
+        }
+        return result
+    }
+
     private async setCells(cellUpdates: Record<number, Cell>) {
         function triggerInputChange(
             node: HTMLInputElement,
@@ -114,38 +146,6 @@ class GameState {
             ])
             if (result === null) {
                 throw new Error(`Element ${selector} not found`)
-            }
-            return result
-        }
-
-        const waitForState = async (
-            predicate: (state: NYTStoreState) => boolean,
-            timeout: number = 1000
-        ): Promise<NYTStoreState | null> => {
-            const result = Promise.race([
-                new Promise<NYTStoreState>((resolve) => {
-                    // Check current state first
-                    const currentState = this.store.getState()
-                    if (predicate(currentState)) {
-                        resolve(currentState)
-                        return
-                    }
-
-                    // Set up subscription to store
-                    const unsubscribe = this.store.subscribe(() => {
-                        const state = this.store.getState()
-                        if (predicate(state)) {
-                            unsubscribe()
-                            resolve(state)
-                        }
-                    })
-                }),
-                new Promise<null>((resolve) => {
-                    setTimeout(() => resolve(null), timeout)
-                }),
-            ])
-            if (result === null) {
-                throw new Error('Timeout waiting for state')
             }
             return result
         }
@@ -213,7 +213,7 @@ class GameState {
                 triggerInputChange(rebusInput, cell.letter)
                 rebusButton.click() // confirm input
 
-                await waitForState(
+                await this.waitForState(
                     (state) =>
                         state.cells[parseInt(cellId)].guess.toUpperCase() ===
                         cell.letter.toUpperCase()
@@ -273,6 +273,24 @@ class GameState {
 
         log('Setting board:', diffCells)
         await this.setCells(diffCells)
+
+        // Wait for all state updates to finish to avoid
+        // a feedback loop
+        await this.waitForState((state) => {
+            for (const [cellId, cell] of Object.entries(diffCells) as [
+                string,
+                Cell
+            ][]) {
+                const cellIdNum = parseInt(cellId)
+                if (
+                    state.cells[cellIdNum].guess !== cell.letter ||
+                    state.cells[cellIdNum].penciled !== cell.penciled
+                ) {
+                    return false
+                }
+            }
+            return true
+        }, 1000)
         this.updating = false
     }
 
