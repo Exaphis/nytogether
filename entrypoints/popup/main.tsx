@@ -17,6 +17,13 @@ import {
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 import { AutoJoinState, NYTStoreState, RoomState } from '@/lib/nyt-interfaces'
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { Info } from 'lucide-react'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
@@ -275,6 +282,19 @@ function Contents() {
                             <FormLabel className="text-sm font-normal">
                                 Auto join
                             </FormLabel>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Info className="w-4 h-4" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-[200px]">
+                                        <p>
+                                            Whenever a crossword puzzle is
+                                            opened, join the room automatically.
+                                        </p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </FormItem>
                     )}
                 />
@@ -298,7 +318,6 @@ const root = createRoot(document.getElementById('app')!)
 root.render(
     <React.StrictMode>
         <div className="w-[300px] p-4 text-center">
-            <h1 className="text-2xl font-bold mb-4">NYTogether</h1>
             <Contents />
         </div>
     </React.StrictMode>
