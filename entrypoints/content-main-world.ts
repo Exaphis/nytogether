@@ -419,17 +419,21 @@ function handleGameStore(elem: Element): boolean {
 }
 
 function observeElement(selector: string, handler: (elem: Element) => boolean) {
-    const observer = new MutationObserver((mutations) => {
+    function onMutation() {
         const element = document.querySelector(selector)
         if (element && handler(element)) {
             observer.disconnect()
         }
-    })
+    }
+
+    const observer = new MutationObserver(onMutation)
 
     observer.observe(document.body, {
         childList: true,
         subtree: true,
     })
+
+    onMutation()
 }
 
 function initialize() {
