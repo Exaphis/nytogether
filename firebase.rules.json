@@ -1,0 +1,52 @@
+{
+    "rules": {
+        "xwords": {
+            "$roomId": {
+                ".read": true,
+                ".write": "auth != null",
+                ".validate": "newData.hasChildren(['createdAt', 'updatedAt']) && $roomId.matches(/^[a-zA-Z0-9-]+$/)",
+                "createdAt": {
+                    ".validate": "newData.isNumber() && (!data.exists() || data.val() === newData.val())"
+                },
+                "updatedAt": {
+                    ".validate": "newData.isNumber() && (!data.exists() || data.val() <= newData.val())"
+                }
+            }
+        },
+        "members": {
+            "$roomId": {
+                ".read": true,
+                ".write": "auth != null",
+                "$name": {
+                    ".write": "!data.exists() || data.child('userId').val() === auth.uid",
+                    "userId": {
+                        ".validate": "newData.val() === auth.uid"
+                    },
+                    "selection": {
+                        ".validate": "newData.isNumber() || newData.val() === null"
+                    }
+                }
+            }
+        },
+        "guesses": {
+            "$roomId": {
+                ".read": true,
+                ".write": "auth != null",
+                "$cell": {
+                    "letter": {
+                        ".validate": "newData.isString()"
+                    },
+                    "userId": {
+                        ".validate": "newData.val() === auth.uid"
+                    },
+                    "timestamp": {
+                        ".validate": "newData.isNumber()"
+                    },
+                    "penciled": {
+                        ".validate": "newData.isBoolean()"
+                    }
+                }
+            }
+        }
+    }
+}
