@@ -391,11 +391,17 @@ async function main() {
         return result.data as NYTStoreState
     }
 
+    window.addEventListener('beforeunload', () => {
+        log('Unloading, clearing room state in background')
+        sendMessage('room-state', null, 'background')
+    })
+
     const roomState = new RoomState(
         async (state) => {
             const roomData = await state.getRoomData()
             log('Sending connected room state:', roomData)
             sendMessage('room-state', roomData as any, 'popup')
+            sendMessage('room-state', roomData as any, 'background')
         },
         getGameState,
         async (board: RoomGuesses) => {

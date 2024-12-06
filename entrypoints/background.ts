@@ -8,4 +8,9 @@ export default defineBackground(() => {
             url: 'https://www.nytimes.com/activate-access/access-code?access_code=b77295e7c59624db&source=access_code_redemption_lp:games&campaignId=8KU89',
         })
     })
+
+    onMessage('room-state', async (message) => {
+        console.log('Received room state:', message)
+        console.log('Sent from tab id:', message.sender.tabId)
+    })
 })
