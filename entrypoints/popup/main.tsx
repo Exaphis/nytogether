@@ -141,18 +141,36 @@ function Contents() {
 
     async function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
-        setAutoJoin(
-            data.autoJoin
-                ? {
-                      roomName: data.roomName,
-                      displayName: data.displayName,
-                  }
-                : null
-        )
-        await sendMessageToTab('join-room', {
-            roomName: data.roomName,
-            username: data.displayName,
-        })
+        try {
+            const result = (await sendMessageToTab('join-room', {
+                roomName: data.roomName,
+                username: data.displayName,
+            })) as any
+            log('join-room result:', result)
+
+            if (!result.success) {
+                form.setError('root.backendError', {
+                    type: 'custom',
+                    message: result.error || 'Failed to join room',
+                })
+                log('set error')
+                return
+            }
+
+            setAutoJoin(
+                data.autoJoin
+                    ? {
+                          roomName: data.roomName,
+                          displayName: data.displayName,
+                      }
+                    : null
+            )
+        } catch (err) {
+            form.setError('root.backendError', {
+                message: 'An unexpected error occurred',
+            })
+            console.error('Error joining room:', err)
+        }
     }
 
     function leaveRoom() {
@@ -260,6 +278,15 @@ function Contents() {
                         </FormItem>
                     )}
                 />
+
+                {form.formState.errors.root?.backendError && (
+                    <Alert variant="destructive">
+                        <AlertTitle>Error joining room</AlertTitle>
+                        <AlertDescription>
+                            {form.formState.errors.root?.backendError.message}
+                        </AlertDescription>
+                    </Alert>
+                )}
                 <Button type="submit">Join room</Button>
             </form>
         </Form>

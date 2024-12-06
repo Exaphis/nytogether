@@ -79,24 +79,20 @@ class RoomState {
 
     async connect(requestedRoomName: string, username: string) {
         if (!requestedRoomName || !username) {
-            error('Cannot join room: missing room name or username')
-            return
+            throw new Error('Missing room name or username')
         }
         if (this.data !== null) {
-            error('Already in a room!')
-            return
+            throw new Error('Already in a room')
         }
 
         const user = getAuth().currentUser
         if (!user) {
-            error('No user!')
-            return
+            throw new Error('User not authenticated')
         }
 
         const gameState = await this.queryGameState()
         if (gameState === null) {
-            error('No game state!')
-            return
+            throw new Error('No game state found')
         }
 
         // update requested room name to the actual room name
@@ -106,56 +102,58 @@ class RoomState {
 
         log('Joining room:', roomName, 'with username:', username)
 
-        let guessesRef: any = null
-        let memberRef: any = null
-        try {
-            // Create/update the xword room entry
-            const xwordRef = ref(this.database, `xwords/${roomName}`)
-            const xwordSnapshot = await get(xwordRef)
+        // Add the member
+        const memberRef = ref(this.database, `members/${roomName}/${username}`)
 
-            if (!xwordSnapshot.exists()) {
-                // New room
-                await set(xwordRef, {
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                })
-            }
-
-            // Create/update the guesses entry
-            guessesRef = ref(this.database, `guesses/${roomName}`)
-            const guessesSnapshot = await get(guessesRef)
-
-            if (!guessesSnapshot.exists()) {
-                // New room
-                let guesses: { [key: string]: any } = {}
-                for (const cell of gameState.cells) {
-                    guesses[cell.index.toString()] = {
-                        letter: cell.guess,
-                        userId: user.uid,
-                        timestamp: serverTimestamp(),
-                        penciled: cell.penciled,
-                    }
-                }
-                log('Setting guesses:', guesses)
-                await set(guessesRef, guesses)
-            }
-
-            // Add the member
-            memberRef = ref(this.database, `members/${roomName}/${username}`)
-
-            // Set up automatic cleanup on disconnect
-            onDisconnect(memberRef).remove()
-
-            // Add the member with new structure
-            await set(memberRef, {
-                userId: user.uid,
-                selection: gameState.selection.cell,
-            })
-            log('Successfully joined room')
-        } catch (err) {
-            error('Error joining room:', err)
-            return
+        // Make sure the member doesn't already exist
+        const memberSnapshot = await get(memberRef)
+        if (memberSnapshot.exists()) {
+            throw new Error(
+                `User with username ${username} already in room ${roomName}`
+            )
         }
+
+        // Set up automatic cleanup on disconnect
+        onDisconnect(memberRef).remove()
+
+        // Add the member with new structure
+        await set(memberRef, {
+            userId: user.uid,
+            selection: gameState.selection.cell,
+        })
+
+        // Create/update the xword room entry
+        const xwordRef = ref(this.database, `xwords/${roomName}`)
+        const xwordSnapshot = await get(xwordRef)
+
+        if (!xwordSnapshot.exists()) {
+            // New room
+            await set(xwordRef, {
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            })
+        }
+
+        // Create/update the guesses entry
+        const guessesRef = ref(this.database, `guesses/${roomName}`)
+        const guessesSnapshot = await get(guessesRef)
+
+        if (!guessesSnapshot.exists()) {
+            // New room
+            let guesses: { [key: string]: any } = {}
+            for (const cell of gameState.cells) {
+                guesses[cell.index.toString()] = {
+                    letter: cell.guess,
+                    userId: user.uid,
+                    timestamp: serverTimestamp(),
+                    penciled: cell.penciled,
+                }
+            }
+            log('Setting guesses:', guesses)
+            await set(guessesRef, guesses)
+        }
+
+        log('Successfully joined room')
 
         // Set the room state up before setting up the member listener
         // so that we don't miss any updates
@@ -438,10 +436,20 @@ async function main() {
         return await getGameState()
     })
 
-    onMessage('join-room', (message) => {
+    onMessage('join-room', async (message) => {
         const data = message.data as { roomName: string; username: string }
         log('Received join room request from popup', data)
-        roomState.connect(data.roomName, data.username)
+        try {
+            await roomState.connect(data.roomName, data.username)
+        } catch (error) {
+            return {
+                success: false,
+                error: (error as any).message,
+            }
+        }
+        return {
+            success: true,
+        }
     })
 
     onMessage('leave-room', (message) => {
