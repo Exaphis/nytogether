@@ -17,7 +17,7 @@ const error = (message: string, ...args: any[]) => {
 
 class GameState {
     private store: any
-    private diffVersion: number = 0
+    private updating: boolean = false
 
     constructor(store: any) {
         log('Constructing GameState with store:', store)
@@ -28,27 +28,14 @@ class GameState {
             sendMessage('game-state', store.getState(), 'content-script')
         }
 
-        store.dispatch({
-            type: 'crossword/user/CHANGE_SETTING',
-            payload: {
-                nyTogetherDiffVersion: this.diffVersion,
-            },
-        })
-
         store.subscribe(() => {
             const state = store.getState()
             if (!state.transient.isSynced) {
                 log('Aborting state update: store.transient.isSynced is false')
                 return
             }
-            if (
-                state.user.settings.nyTogetherDiffVersion !== this.diffVersion
-            ) {
-                log(
-                    'Aborting state update: Diff version mismatch!',
-                    state.user.settings.nyTogetherDiffVersion,
-                    this.diffVersion
-                )
+            if (this.updating) {
+                log('Aborting state update: currently updating')
                 return
             }
 
@@ -281,22 +268,15 @@ class GameState {
             )) as HTMLInputElement
             triggerInputChange(rebusInput, rebusContents)
         }
-
-        this.store.dispatch({
-            type: 'crossword/user/CHANGE_SETTING',
-            payload: {
-                nyTogetherDiffVersion: this.diffVersion,
-            },
-        })
     }
 
-    setBoard(board: RoomGuesses) {
+    async setBoard(board: RoomGuesses) {
         const state = this.store.getState() as NYTStoreState
-        if (state.user.settings.nyTogetherDiffVersion !== this.diffVersion) {
-            log('Aborting setBoard: Diff version mismatch!')
+        if (this.updating) {
+            log('Aborting setBoard: currently updating')
             return
         }
-        this.diffVersion++
+        this.updating = true
 
         const diffCells: Record<number, Cell> = {}
         for (const [cellId, cell] of Object.entries(board) as [
@@ -313,13 +293,8 @@ class GameState {
         }
 
         log('Setting board:', diffCells)
-        this.setCells(diffCells)
-            .then(() => {
-                log('Board set.')
-            })
-            .catch((err) => {
-                log('Error setting board:', err)
-            })
+        await this.setCells(diffCells)
+        this.updating = false
     }
 
     getState() {
@@ -461,9 +436,9 @@ function initialize() {
         return state
     })
 
-    onMessage('set-board', (message) => {
+    onMessage('set-board', async (message) => {
         log('Setting board:', message.data)
-        globalState?.setBoard(message.data as unknown as RoomGuesses)
+        await globalState?.setBoard(message.data as unknown as RoomGuesses)
     })
 
     log('Initialized.')
