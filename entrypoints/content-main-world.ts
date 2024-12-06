@@ -50,32 +50,11 @@ class GameState {
                 log(`Caps Lock ${capsLockState ? 'ON' : 'OFF'}`)
                 const state = this.store.getState() as NYTStoreState
                 log(`Pencil mode: ${state.toolbar.inPencilMode}`)
-                // if (state.toolbar.inPencilMode !== capsLockState) {
-                //     this.store.dispatch({
-                //         type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
-                //     })
-                // }
-
-                // log('Setting cell', 1, state.cells[1].answer)
-                // await this.setCell(1, {
-                //     letter: 'HELLO',
-                //     userId: '0',
-                //     timestamp: 0,
-                //     penciled: capsLockState,
-                // })
-
-                const board: RoomGuesses = {}
-                for (const [cellId, cellData] of Object.entries(state.cells)) {
-                    if (cellData.answer) {
-                        board[parseInt(cellId)] = {
-                            letter: cellData.answer,
-                            userId: '0',
-                            timestamp: 0,
-                            penciled: capsLockState,
-                        }
-                    }
+                if (state.toolbar.inPencilMode !== capsLockState) {
+                    this.store.dispatch({
+                        type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                    })
                 }
-                await this.setBoard(board)
             }
         }
 
