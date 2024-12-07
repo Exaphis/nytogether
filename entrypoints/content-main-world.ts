@@ -1,10 +1,5 @@
 import { sendMessage, setNamespace, onMessage } from 'webext-bridge/window'
-import type {
-    NYTUser,
-    NYTStoreState,
-    RoomGuesses,
-    Cell,
-} from '@/lib/nyt-interfaces'
+import type { NYTStoreState, RoomGuesses, Cell } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content-main-world] ${message}`, ...args)
@@ -326,36 +321,6 @@ class GameState {
 
 let globalState: GameState | null = null
 
-const handleRedeem = (elem: Element): boolean => {
-    // Open the redeem page if the user is logged in and does not have crossword access.
-    log('Found redeem element:', elem)
-    const fiber = findReact(elem)
-    log('Fiber:', fiber)
-    if (fiber === null) {
-        return false
-    }
-    log('Fiber user:', fiber.pendingProps.user)
-    if (!fiber.pendingProps.user) {
-        return false
-    }
-
-    let user = fiber.pendingProps.user as NYTUser
-    log('User:', user)
-
-    if (!user.isLoggedIn) {
-        log('User is not logged in')
-        return false
-    }
-
-    log('User has crossword access:', user.hasXwd)
-    if (!user.hasXwd) {
-        log('User does not have crossword access. Opening redeem page.')
-        sendMessage('redeem', {}, 'background')
-    }
-
-    return true
-}
-
 function isStore(obj: any): boolean {
     // heuristic to check if `obj` is a redux store
     return obj?.dispatch !== undefined
@@ -444,7 +409,6 @@ function initialize() {
 
     log('Setting up observers...')
 
-    observeElement('#hub-root > div.hub-welcome', handleRedeem)
     observeElement('main', handleGameStore)
 
     onMessage('query-game-state', (message) => {
