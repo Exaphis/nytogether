@@ -275,6 +275,7 @@ class GameState {
             log('Aborting setBoard: currently updating')
             return
         }
+        log('Setting board...')
         this.updating = true
 
         const diffCells: Record<number, Cell> = {}
@@ -291,27 +292,39 @@ class GameState {
             }
         }
 
-        log('Setting board:', diffCells)
-        await this.setCells(diffCells)
+        if (Object.keys(diffCells).length === 0) {
+            log('No changes to board')
+            this.updating = false
+            return
+        }
 
-        // Wait for all state updates to finish to avoid
-        // a feedback loop
-        await this.waitForState((state) => {
-            for (const [cellId, cell] of Object.entries(diffCells) as [
-                string,
-                Cell
-            ][]) {
-                const cellIdNum = parseInt(cellId)
-                if (
-                    state.cells[cellIdNum].guess !== cell.letter ||
-                    state.cells[cellIdNum].penciled !== cell.penciled
-                ) {
-                    return false
+        try {
+            log('Setting board:', diffCells)
+            await this.setCells(diffCells)
+
+            log('Waiting for state updates to finish')
+            // Wait for all state updates to finish to avoid
+            // a feedback loop
+            await this.waitForState((state) => {
+                for (const [cellId, cell] of Object.entries(diffCells) as [
+                    string,
+                    Cell
+                ][]) {
+                    const cellIdNum = parseInt(cellId)
+                    if (
+                        state.cells[cellIdNum].guess !== cell.letter ||
+                        state.cells[cellIdNum].penciled !== cell.penciled
+                    ) {
+                        return false
+                    }
                 }
-            }
-            return true
-        }, 1000)
-        this.updating = false
+                return true
+            }, 1000)
+        } catch (err) {
+            error('Error updating board:', err)
+        } finally {
+            this.updating = false
+        }
     }
 
     getState() {
