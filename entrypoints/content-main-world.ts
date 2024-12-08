@@ -232,12 +232,6 @@ class GameState {
                 )) as HTMLInputElement
                 triggerInputChange(rebusInput, cell.letter)
                 rebusButton.click() // confirm input
-
-                await this.waitForState(
-                    (state) =>
-                        state.cells[parseInt(cellId)].guess.toUpperCase() ===
-                        cell.letter.toUpperCase()
-                )
             }
         }
 
