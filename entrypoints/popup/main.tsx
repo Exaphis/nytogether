@@ -24,12 +24,16 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Info } from 'lucide-react'
+import { GetDataType, GetReturnType, ProtocolMap } from 'webext-bridge'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
 }
 
-async function sendMessageToTab(messageID: string, data: any) {
+async function sendMessageToTab<K extends keyof ProtocolMap>(
+    messageID: K,
+    data: GetDataType<K, any>
+): Promise<GetReturnType<K, any> | null> {
     const tabs = await browser.tabs.query({ active: true, currentWindow: true })
     if (tabs.length > 0) {
         return await sendMessage(
@@ -38,6 +42,7 @@ async function sendMessageToTab(messageID: string, data: any) {
             `content-script@${tabs[0].id}`
         )
     }
+    return null
 }
 
 function useRoomState() {
@@ -46,18 +51,14 @@ function useRoomState() {
     React.useEffect(() => {
         const unlisten = onMessage('room-state', (message) => {
             log('Received room state update:', message)
-            if (message.data === null) {
-                setRoomState(null)
-            } else {
-                setRoomState(message.data as unknown as RoomState)
-            }
+            setRoomState(message.data)
         })
 
         async function fetchInitialState() {
             try {
-                const state = await sendMessageToTab('query-room-state', {})
+                const state = await sendMessageToTab('query-room-state', null)
                 if (state) {
-                    setRoomState(state as unknown as RoomState)
+                    setRoomState(state)
                 }
             } catch (err) {
                 console.error('Error fetching initial room state:', err)
@@ -77,14 +78,14 @@ function useGameState() {
     React.useEffect(() => {
         const unlisten = onMessage('game-state', (message) => {
             log('Received game state update:', message)
-            setGameState(message.data as NYTStoreState)
+            setGameState(message.data)
         })
 
         async function fetchInitialState() {
             try {
-                const state = await sendMessageToTab('query-game-state', {})
+                const state = await sendMessageToTab('query-game-state', null)
                 if (state) {
-                    setGameState(state as NYTStoreState)
+                    setGameState(state)
                 }
             } catch (err) {
                 console.error('Error fetching initial game state:', err)
@@ -149,16 +150,16 @@ function Contents() {
     async function onSubmit(data: z.infer<typeof roomFormSchema>) {
         log('Joining room', data)
         try {
-            const result = (await sendMessageToTab('join-room', {
+            const result = await sendMessageToTab('join-room', {
                 roomName: data.roomName,
                 username: data.displayName,
-            })) as any
+            })
             log('join-room result:', result)
 
-            if (!result.success) {
+            if (result === null || !result.success) {
                 form.setError('root.backendError', {
                     type: 'custom',
-                    message: result.error || 'Failed to join room',
+                    message: result?.error || 'Failed to join room',
                 })
                 log('set error')
                 return
@@ -182,7 +183,7 @@ function Contents() {
 
     function leaveRoom() {
         setAutoJoin(null)
-        sendMessageToTab('leave-room', {})
+        sendMessageToTab('leave-room', null)
     }
 
     if (gameState === null) {

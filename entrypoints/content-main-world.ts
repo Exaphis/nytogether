@@ -431,7 +431,7 @@ function initialize() {
 
     onMessage('set-board', async (message) => {
         log('Setting board:', message.data)
-        await globalState?.setBoard(message.data as unknown as RoomGuesses)
+        await globalState?.setBoard(message.data)
     })
 
     log('Initialized.')

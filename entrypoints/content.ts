@@ -373,7 +373,7 @@ async function main() {
     allowWindowMessaging('nytogether')
 
     async function getGameState(): Promise<NYTStoreState | null> {
-        const res = await sendMessage('query-game-state', {}, 'window')
+        const res = await sendMessage('query-game-state', null, 'window')
         if (res === null) {
             error('No game state received from content-main-world')
             return null
@@ -386,7 +386,7 @@ async function main() {
             return null
         }
 
-        return result.data as NYTStoreState
+        return result.data
     }
 
     window.addEventListener('beforeunload', () => {
@@ -398,12 +398,12 @@ async function main() {
         async (state) => {
             const roomData = await state.getRoomData()
             log('Sending connected room state:', roomData)
-            sendMessage('room-state', roomData as any, 'popup')
-            sendMessage('room-state', roomData as any, 'background')
+            sendMessage('room-state', roomData, 'popup')
+            sendMessage('room-state', roomData, 'background')
         },
         getGameState,
         async (board: RoomGuesses) => {
-            await sendMessage('set-board', board as any, 'window')
+            await sendMessage('set-board', board, 'window')
         },
         database
     )
@@ -437,10 +437,12 @@ async function main() {
     })
 
     onMessage('join-room', async (message) => {
-        const data = message.data as { roomName: string; username: string }
-        log('Received join room request from popup', data)
+        log('Received join room request from popup', message.data)
         try {
-            await roomState.connect(data.roomName, data.username)
+            await roomState.connect(
+                message.data.roomName,
+                message.data.username
+            )
         } catch (error) {
             return {
                 success: false,
