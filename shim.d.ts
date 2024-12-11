@@ -7,11 +7,12 @@ declare module 'webext-bridge' {
         'query-room-state': ProtocolWithReturn<null, RoomState | null>
         'game-state': NYTStoreState | null
         'query-game-state': ProtocolWithReturn<null, NYTStoreState | null>
-        'set-board': RoomGuesses | null
+        'set-cell': { cellId: number; cell: NYTCell }
         'join-room': ProtocolWithReturn<
             { roomName: string; username: string },
             { success: boolean; error?: string }
         >
         'leave-room': ProtocolWithReturn<null, void>
+        'cell-update': { [cell: number]: NYTCell }
     }
 }

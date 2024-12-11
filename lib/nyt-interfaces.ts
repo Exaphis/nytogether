@@ -95,6 +95,11 @@ export interface RoomState {
     members: Record<string, Member>
 }
 
+export interface NYTCell {
+    guess: string
+    penciled: boolean
+}
+
 export interface Cell {
     letter: string
     userId: string

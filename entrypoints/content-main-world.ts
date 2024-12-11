@@ -1,5 +1,6 @@
 import { sendMessage, setNamespace, onMessage } from 'webext-bridge/window'
-import type { NYTStoreState, RoomGuesses, Cell } from '@/lib/nyt-interfaces'
+import type { NYTStoreState, NYTCell } from '@/lib/nyt-interfaces'
+import { Mutex, MutexInterface } from 'async-mutex'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/content-main-world] ${message}`, ...args)
@@ -37,29 +38,41 @@ function findReact(dom: any, traverseUp = 0) {
 
 class GameState {
     private store: any
-    private updating: boolean = false
+    private prevCells: { [cell: number]: NYTCell } = {}
+    private storeMutex: MutexInterface = new Mutex()
 
     constructor(store: any) {
         log('Constructing GameState with store:', store)
 
         this.store = store
-        const state = store.getState()
-        if (state.transient.isSynced) {
-            sendMessage('game-state', store.getState(), 'content-script')
-        }
+        const state = store.getState() as NYTStoreState
+        this.prevCells = state.cells
+        sendMessage('game-state', store.getState(), 'content-script')
 
         store.subscribe(() => {
             const state = store.getState()
-            if (!state.transient.isSynced) {
-                log('Aborting state update: store.transient.isSynced is false')
-                return
-            }
-            if (this.updating) {
-                log('Aborting state update: currently updating')
-                return
+            const diffCells: Record<number, NYTCell> = {}
+            for (const [cellId, cell] of Object.entries(state.cells) as [
+                string,
+                NYTCell
+            ][]) {
+                const cellIdNum = parseInt(cellId)
+                if (this.prevCells[cellIdNum] !== cell) {
+                    diffCells[cellIdNum] = cell
+                }
             }
 
-            log('Store changed:', state)
+            this.prevCells = state.cells
+
+            if (this.storeMutex.isLocked()) {
+                log('Store updated but mutex is locked, skipping updates')
+                return
+            }
+            log('Store changed', state, 'Different cells:', diffCells)
+
+            if (Object.keys(diffCells).length > 0) {
+                sendMessage('cell-update', diffCells, 'content-script')
+            }
             sendMessage('game-state', state, 'content-script')
         })
 
@@ -114,211 +127,140 @@ class GameState {
         return result
     }
 
-    private async setCells(cellUpdates: Record<number, Cell>) {
-        function triggerInputChange(
-            node: HTMLInputElement,
-            inputValue: string
-        ) {
-            log('Setting input value', node, inputValue)
+    private triggerInputChange(node: HTMLInputElement, inputValue: string) {
+        log('Setting input value', node, inputValue)
 
-            // https://stackoverflow.com/a/46012210/6686559
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                window.HTMLInputElement.prototype,
-                'value'
-            )?.set
-            if (nativeInputValueSetter) {
-                nativeInputValueSetter.call(node, inputValue)
-            }
-
-            var ev2 = new Event('input', { bubbles: true })
-            node.dispatchEvent(ev2)
+        // https://stackoverflow.com/a/46012210/6686559
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            'value'
+        )?.set
+        if (nativeInputValueSetter) {
+            nativeInputValueSetter.call(node, inputValue)
         }
 
-        async function waitForElement(
-            selector: string,
-            timeout: number = 1000
-        ): Promise<Element> {
-            const result = await Promise.race([
-                new Promise<Element>((resolve) => {
-                    const observer = new MutationObserver((mutations, obs) => {
-                        const input = document.querySelector(selector)
-                        if (input) {
-                            obs.disconnect()
-                            resolve(input)
-                        }
-                    })
+        var ev2 = new Event('input', { bubbles: true })
+        node.dispatchEvent(ev2)
+    }
 
-                    observer.observe(document.body, {
-                        childList: true,
-                        subtree: true,
-                    })
-
-                    // Also check immediately in case it already exists
+    private async waitForElement(
+        selector: string,
+        timeout: number = 1000
+    ): Promise<Element> {
+        const result = await Promise.race([
+            new Promise<Element>((resolve) => {
+                const observer = new MutationObserver((mutations, obs) => {
                     const input = document.querySelector(selector)
                     if (input) {
-                        observer.disconnect()
+                        obs.disconnect()
                         resolve(input)
                     }
-                }),
-                new Promise<null>((resolve) => {
-                    setTimeout(() => resolve(null), timeout)
-                }),
-            ])
-            if (result === null) {
-                throw new Error(`Element ${selector} not found`)
-            }
-            return result
-        }
+                })
 
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true,
+                })
+
+                // Also check immediately in case it already exists
+                const input = document.querySelector(selector)
+                if (input) {
+                    observer.disconnect()
+                    resolve(input)
+                }
+            }),
+            new Promise<null>((resolve) => {
+                setTimeout(() => resolve(null), timeout)
+            }),
+        ])
+        if (result === null) {
+            throw new Error(`Element ${selector} not found`)
+        }
+        return result
+    }
+
+    public async setCell(cellId: number, cell: NYTCell) {
         const storeState = this.store.getState()
         if (storeState.status.isSolved) {
             log('Game is already solved!')
             return
         }
-
-        const prevSelection = storeState.selection.cell
-        const inPencilMode = storeState.toolbar.inPencilMode
-        const inRebusMode = storeState.toolbar.inRebusMode
-        const rebusContents = storeState.toolbar.rebusValue
-
-        const rebusButton = document.querySelector(
-            '[aria-label="Rebus"]'
-        ) as HTMLButtonElement
-
-        // Save rebus state if needed
-        if (inRebusMode) {
-            const rebusInput = (await waitForElement(
-                '#rebus-input'
-            )) as HTMLInputElement
-            rebusInput.blur()
+        if (
+            storeState.cells[cellId].guess === cell.guess &&
+            storeState.cells[cellId].penciled === cell.penciled
+        ) {
+            log('Cell already set:', cellId, cell)
+            return
         }
-        // Group cells by pencil state to minimize pencil mode toggles
-        const penciledCells: Record<number, Cell> = {}
-        const unpenciledCells: Record<number, Cell> = {}
+        log('Setting cell:', cellId, cell)
 
-        for (const [cellId, cell] of Object.entries(cellUpdates)) {
-            const numericCellId = parseInt(cellId)
-            if (cell.penciled) {
-                penciledCells[numericCellId] = cell
-            } else {
-                unpenciledCells[numericCellId] = cell
+        this.storeMutex.runExclusive(async () => {
+            const prevSelection = storeState.selection.cell
+            const inPencilMode = storeState.toolbar.inPencilMode
+            const inRebusMode = storeState.toolbar.inRebusMode
+            const rebusContents = storeState.toolbar.rebusValue
+
+            const rebusButton = document.querySelector(
+                '[aria-label="Rebus"]'
+            ) as HTMLButtonElement
+
+            // Save rebus state if needed
+            if (inRebusMode) {
+                const rebusInput = (await this.waitForElement(
+                    '#rebus-input'
+                )) as HTMLInputElement
+                rebusInput.blur()
             }
-        }
 
-        let currPencilMode = inPencilMode
-
-        const fillCells = async (
-            cells: Record<number, Cell>,
-            penciled: boolean
-        ) => {
-            if (Object.keys(cells).length === 0) return
-
-            if (currPencilMode !== penciled) {
+            const changePencilMode = cell.penciled !== inPencilMode
+            if (changePencilMode) {
                 this.store.dispatch({
                     type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
                 })
-                currPencilMode = penciled
             }
 
-            for (const [cellId, cell] of Object.entries(cells)) {
-                this.store.dispatch({
-                    type: 'crossword/selection/SELECT_CELL',
-                    payload: { index: parseInt(cellId) },
-                })
-
-                rebusButton.click()
-                const rebusInput = (await waitForElement(
-                    '#rebus-input'
-                )) as HTMLInputElement
-                triggerInputChange(rebusInput, cell.letter)
-                rebusButton.click() // confirm input
-            }
-        }
-
-        await fillCells(penciledCells, true)
-        await fillCells(unpenciledCells, false)
-
-        // Restore pencil mode if we changed it
-        if (currPencilMode !== inPencilMode) {
             this.store.dispatch({
-                type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                type: 'crossword/selection/SELECT_CELL',
+                payload: { index: cellId },
             })
-        }
 
-        // Restore selection
-        this.store.dispatch({
-            type: 'crossword/selection/SELECT_CELL',
-            payload: {
-                index: prevSelection,
-            },
-        })
-
-        // Restore rebus state if needed
-        if (inRebusMode) {
             rebusButton.click()
-            const rebusInput = (await waitForElement(
+            const rebusInput = (await this.waitForElement(
                 '#rebus-input'
             )) as HTMLInputElement
-            triggerInputChange(rebusInput, rebusContents)
-        }
-    }
+            this.triggerInputChange(rebusInput, cell.guess)
+            rebusButton.click() // confirm input
 
-    async setBoard(board: RoomGuesses) {
-        const state = this.store.getState() as NYTStoreState
-        if (this.updating) {
-            log('Aborting setBoard: currently updating')
-            return
-        }
-        log('Setting board...')
-        this.updating = true
+            await this.waitForState(
+                (state) =>
+                    state.cells[cellId].guess === cell.guess &&
+                    state.cells[cellId].penciled === cell.penciled
+            )
 
-        const diffCells: Record<number, Cell> = {}
-        for (const [cellId, cell] of Object.entries(board) as [
-            string,
-            Cell
-        ][]) {
-            const cellIdNum = parseInt(cellId)
-            if (
-                state.cells[cellIdNum].guess !== cell.letter ||
-                state.cells[cellIdNum].penciled !== cell.penciled
-            ) {
-                diffCells[cellIdNum] = cell
+            // Restore pencil mode if we changed it
+            if (changePencilMode) {
+                this.store.dispatch({
+                    type: 'crossword/toolbar/TOGGLE_PENCIL_MODE',
+                })
             }
-        }
 
-        if (Object.keys(diffCells).length === 0) {
-            log('No changes to board')
-            this.updating = false
-            return
-        }
+            // Restore selection
+            this.store.dispatch({
+                type: 'crossword/selection/SELECT_CELL',
+                payload: {
+                    index: prevSelection,
+                },
+            })
 
-        try {
-            log('Setting board:', diffCells)
-            await this.setCells(diffCells)
-
-            log('Waiting for state updates to finish')
-            // Wait for all state updates to finish to avoid
-            // a feedback loop
-            await this.waitForState((state) => {
-                for (const [cellId, cell] of Object.entries(diffCells) as [
-                    string,
-                    Cell
-                ][]) {
-                    const cellIdNum = parseInt(cellId)
-                    if (
-                        state.cells[cellIdNum].guess !== cell.letter ||
-                        state.cells[cellIdNum].penciled !== cell.penciled
-                    ) {
-                        return false
-                    }
-                }
-                return true
-            }, 1000)
-        } catch (err) {
-            error('Error updating board:', err)
-        } finally {
-            this.updating = false
-        }
+            // Restore rebus state if needed
+            if (inRebusMode) {
+                rebusButton.click()
+                const rebusInput = (await this.waitForElement(
+                    '#rebus-input'
+                )) as HTMLInputElement
+                this.triggerInputChange(rebusInput, rebusContents)
+            }
+        })
     }
 
     getState() {
@@ -429,9 +371,9 @@ function initialize() {
         return state
     })
 
-    onMessage('set-board', async (message) => {
-        log('Setting board:', message.data)
-        await globalState?.setBoard(message.data)
+    onMessage('set-cell', async (message) => {
+        log('Setting cell:', message.data)
+        await globalState?.setCell(message.data.cellId, message.data.cell)
     })
 
     log('Initialized.')

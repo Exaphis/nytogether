@@ -15,6 +15,7 @@ import {
     DataSnapshot,
     remove,
     get,
+    onChildChanged,
 } from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
 import {
@@ -24,6 +25,7 @@ import {
     RoomGuesses,
     RoomState as IRoomState,
     AutoJoinState,
+    NYTCell,
 } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
@@ -53,26 +55,25 @@ class RoomState {
         disconnectListeners: any[]
         guessesRef: any
         memberRef: any
-        receivedInitialBoardState: boolean
     } | null
     database: any
     onRoomStateChange: (state: RoomState) => void
     // queryGameState must be a member function, not a global one.
     // Otherwise, we see "Browser.runtime.connect not implemented" errors.
     queryGameState: () => Promise<NYTStoreState | null>
-    setBoard: (board: RoomGuesses) => void
+    setCell: (cellId: number, cell: NYTCell) => Promise<void>
     receivedInitialGameState: boolean
 
     constructor(
         onRoomStateChange: (state: RoomState) => void,
         queryGameState: () => Promise<NYTStoreState | null>,
-        setBoard: (board: RoomGuesses) => Promise<void>,
+        setCell: (cellId: number, cell: NYTCell) => Promise<void>,
         database: any
     ) {
         this.data = null
         this.onRoomStateChange = onRoomStateChange
         this.queryGameState = queryGameState
-        this.setBoard = setBoard
+        this.setCell = setCell
         this.database = database
         this.receivedInitialGameState = false
     }
@@ -151,6 +152,16 @@ class RoomState {
             }
             log('Setting guesses:', guesses)
             await set(guessesRef, guesses)
+        } else {
+            // Guesses already exist, so we need to set the game board state
+            // to match the guesses
+            const guesses = guessesSnapshot.val()
+            for (const [key, val] of Object.entries(guesses)) {
+                await this.setCell(parseInt(key), {
+                    guess: (val as any).letter,
+                    penciled: (val as any).penciled,
+                })
+            }
         }
 
         log('Successfully joined room')
@@ -165,7 +176,6 @@ class RoomState {
             memberRef,
             guessesRef,
             disconnectListeners: [],
-            receivedInitialBoardState: false,
         }
 
         // Set up the member listener
@@ -211,13 +221,17 @@ class RoomState {
             )
         )
 
-        // Set up the guesses listener
+        // Set up the guesses listener. We already know the guesses exist.
         this.data.disconnectListeners.push(
-            onValue(guessesRef, async (snapshot: DataSnapshot) => {
-                log('Updated guesses:', snapshot.val())
-                await this.setBoard(snapshot.val() as RoomGuesses)
-                this.data!.receivedInitialBoardState = true
-                this.onRoomStateChange(this)
+            onChildChanged(guessesRef, async (snapshot: DataSnapshot) => {
+                const key = parseInt(snapshot.key!)
+                const val = snapshot.val()
+                log('Updated guess:', key, val)
+                const cell = {
+                    guess: val.letter,
+                    penciled: val.penciled,
+                }
+                await this.setCell(key, cell)
             })
         )
 
@@ -267,60 +281,11 @@ class RoomState {
 
         this.receivedInitialGameState = true
         if (this.data === null) {
-            log('Not in a room, skipping game state update')
-            return
-        }
-
-        if (!this.data.receivedInitialBoardState) {
-            // We haven't received the initial board state yet.
-            // This happens when we first join the room.
-            // Ignore updates until then to prevent a feedback loop occuring
-            // where we send a guess to the server based on some previous state
-            // that hasn't been updated to the server state yet.
-            log('Not received initial board state, skipping game state update')
+            log('Not in a room, not processing game state update')
             return
         }
 
         const currUid = getAuth().currentUser!.uid
-        log('Updating guesses for room with uid:', currUid)
-
-        const existingGuessesSnapshot = await get(this.data.guessesRef)
-        const existingGuesses = existingGuessesSnapshot.val()
-
-        let newGuesses: { [key: string]: any } = {}
-
-        for (const cell of gameState.cells) {
-            const newGuess = {
-                letter: cell.guess,
-                userId: currUid,
-                timestamp: serverTimestamp(),
-                penciled: cell.penciled,
-            }
-
-            // if letter/penciled is the same as existing, skip
-            if (
-                existingGuesses[cell.index.toString()].letter === cell.guess &&
-                existingGuesses[cell.index.toString()].penciled ===
-                    cell.penciled
-            ) {
-                continue
-            }
-
-            newGuesses[cell.index.toString()] = newGuess
-        }
-
-        if (Object.keys(newGuesses).length === 0) {
-            log('No updates to guesses')
-        }
-
-        for (const [cell, guess] of Object.entries(newGuesses)) {
-            log('Setting guess:', cell, guess)
-            await set(
-                ref(this.database, `guesses/${this.data.roomName}/${cell}`),
-                guess
-            )
-        }
-
         const existingMemberSnapshot = await get(this.data.memberRef)
         const existingMember = existingMemberSnapshot.val()
         if (existingMember.selection !== gameState.selection.cell) {
@@ -331,6 +296,28 @@ class RoomState {
             })
         } else {
             log('No updates to selection')
+        }
+    }
+
+    async onCellUpdate(cells: { [cell: number]: NYTCell }) {
+        if (this.data === null) {
+            log('Not in a room, not processing cell update')
+            return
+        }
+
+        const currUid = getAuth().currentUser!.uid
+
+        for (const [cellId, cell] of Object.entries(cells)) {
+            log('Setting guess in database:', cellId, cell)
+            await set(
+                ref(this.database, `guesses/${this.data.roomName}/${cellId}`),
+                {
+                    letter: cell.guess,
+                    userId: currUid,
+                    timestamp: serverTimestamp(),
+                    penciled: cell.penciled,
+                }
+            )
         }
     }
 
@@ -402,8 +389,8 @@ async function main() {
             sendMessage('room-state', roomData, 'background')
         },
         getGameState,
-        async (board: RoomGuesses) => {
-            await sendMessage('set-board', board, 'window')
+        async (cellId: number, cell: NYTCell) => {
+            await sendMessage('set-cell', { cellId, cell }, 'window')
         },
         database
     )
@@ -429,6 +416,11 @@ async function main() {
             result.data
         )
         sendMessage('game-state', result.data, 'popup')
+    })
+
+    onMessage('cell-update', async (message) => {
+        log('Received cell update from content-main-world')
+        roomState.onCellUpdate(message.data)
     })
 
     onMessage('query-game-state', async (message) => {
