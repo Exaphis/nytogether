@@ -415,7 +415,11 @@ async function main() {
             'Forwarding validated game state from content-main-world to popup:',
             result.data
         )
-        sendMessage('game-state', result.data, 'popup')
+        try {
+            sendMessage('game-state', result.data, 'popup')
+        } catch (error) {
+            log('Error sending game state to popup:', error)
+        }
     })
 
     onMessage('cell-update', async (message) => {

@@ -94,7 +94,7 @@ function useGameState() {
 
         fetchInitialState()
         return unlisten
-    }, [setGameState])
+    }, [])
 
     return gameState
 }
@@ -220,10 +220,7 @@ function Contents() {
                     </h3>
                     <div className="flex flex-col gap-1">
                         {Object.entries(members).map(([username, member]) => (
-                            <div
-                                key={member.userId}
-                                className="flex items-center gap-2 text-sm text-left"
-                            >
+                            <div className="flex items-center gap-2 text-sm text-left">
                                 <span>{username}</span>
                                 {member.userId === currentUserId && (
                                     <span className="text-xs text-muted-foreground">
