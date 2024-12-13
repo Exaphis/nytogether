@@ -76,8 +76,8 @@ class GameState {
             sendMessage('game-state', state, 'content-script')
         })
 
-        // Add caps lock detection
-        const handleCapsLock = async (event: KeyboardEvent) => {
+        const handleKey = async (event: KeyboardEvent) => {
+            // Toggle pencil mode on Caps Lock
             if (event.code === 'CapsLock') {
                 const capsLockState = event.getModifierState('CapsLock')
                 log(`Caps Lock ${capsLockState ? 'ON' : 'OFF'}`)
@@ -89,10 +89,38 @@ class GameState {
                     })
                 }
             }
+
+            // Debug tool: fill cells every second
+            if (
+                event.type === 'keydown' &&
+                event.ctrlKey &&
+                event.shiftKey &&
+                event.code === 'KeyD'
+            ) {
+                const state = this.store.getState() as NYTStoreState
+                for (const cell of state.cells) {
+                    if (cell.type != 0) {
+                        await this.setCell(cell.index, {
+                            guess: String.fromCharCode(
+                                ...Array(3)
+                                    .fill(0)
+                                    .map(
+                                        () =>
+                                            Math.floor(Math.random() * 26) + 65
+                                    )
+                            ),
+                            penciled: Math.random() > 0.5,
+                        })
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 1000)
+                        )
+                    }
+                }
+            }
         }
 
-        document.addEventListener('keydown', handleCapsLock)
-        document.addEventListener('keyup', handleCapsLock)
+        document.addEventListener('keydown', handleKey)
+        document.addEventListener('keyup', handleKey)
     }
 
     private async waitForState(
@@ -204,12 +232,21 @@ class GameState {
                 '[aria-label="Rebus"]'
             ) as HTMLButtonElement
 
-            // Save rebus state if needed
+            // Save rebus state and selection if needed
+            let savedCaretPosition: number | null = null
+            let savedSelectionStart: number | null = null
+            let savedSelectionEnd: number | null = null
             if (inRebusMode) {
                 const rebusInput = (await this.waitForElement(
                     '#rebus-input'
                 )) as HTMLInputElement
+                savedCaretPosition = rebusInput.selectionStart
+                savedSelectionStart = rebusInput.selectionStart
+                savedSelectionEnd = rebusInput.selectionEnd
                 rebusInput.blur()
+
+                // Wait for the rebus mode to be disabled before proceeding
+                await this.waitForState((state) => !state.toolbar.inRebusMode)
             }
 
             const changePencilMode = cell.penciled !== inPencilMode
@@ -231,12 +268,6 @@ class GameState {
             this.triggerInputChange(rebusInput, cell.guess)
             rebusButton.click() // confirm input
 
-            await this.waitForState(
-                (state) =>
-                    state.cells[cellId].guess === cell.guess &&
-                    state.cells[cellId].penciled === cell.penciled
-            )
-
             // Restore pencil mode if we changed it
             if (changePencilMode) {
                 this.store.dispatch({
@@ -254,12 +285,40 @@ class GameState {
 
             // Restore rebus state if needed
             if (inRebusMode) {
+                // Wait for the selection to be restored before proceeding
+                await this.waitForState(
+                    (state) => state.selection.cell === prevSelection
+                )
+
                 rebusButton.click()
                 const rebusInput = (await this.waitForElement(
                     '#rebus-input'
                 )) as HTMLInputElement
                 this.triggerInputChange(rebusInput, rebusContents)
+
+                // Restore caret position and selection
+                if (
+                    savedSelectionStart !== null &&
+                    savedSelectionEnd !== null
+                ) {
+                    rebusInput.setSelectionRange(
+                        savedSelectionStart,
+                        savedSelectionEnd
+                    )
+                } else if (savedCaretPosition !== null) {
+                    rebusInput.setSelectionRange(
+                        savedCaretPosition,
+                        savedCaretPosition
+                    )
+                }
             }
+
+            // Wait for the cell to be updated
+            await this.waitForState(
+                (state) =>
+                    state.cells[cellId].guess === cell.guess &&
+                    state.cells[cellId].penciled === cell.penciled
+            )
         })
     }
 
