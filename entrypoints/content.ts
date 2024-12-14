@@ -22,7 +22,6 @@ import {
     NYTStoreStateSchema,
     NYTStoreState,
     Member,
-    RoomGuesses,
     RoomState as IRoomState,
     AutoJoinState,
     NYTCell,
@@ -369,24 +368,24 @@ async function main() {
         // Validate the game state using our Zod schema
         const result = NYTStoreStateSchema.safeParse(res)
         if (!result.success) {
-            error('Invalid game state received:', result.error)
+            error('Invalid game state received:', res, result.error)
             return null
         }
 
         return result.data
     }
 
-    window.addEventListener('beforeunload', () => {
-        log('Unloading, clearing room state in background')
-        sendMessage('room-state', null, 'background')
+    window.addEventListener('beforeunload', async () => {
+        log('Unloading, clearing state in background')
+        await sendMessage('room-state', null, 'background')
+        await sendMessage('game-state', null, 'background')
     })
 
     const roomState = new RoomState(
         async (state) => {
             const roomData = await state.getRoomData()
             log('Sending connected room state:', roomData)
-            sendMessage('room-state', roomData, 'popup')
-            sendMessage('room-state', roomData, 'background')
+            await sendMessage('room-state', roomData, 'background')
         },
         getGameState,
         async (cellId: number, cell: NYTCell) => {
@@ -394,11 +393,6 @@ async function main() {
         },
         database
     )
-
-    onMessage('query-room-state', async (message) => {
-        log('Received room state request from popup')
-        return await roomState.getRoomData()
-    })
 
     onMessage('game-state', async (message) => {
         // Validate the game state using our Zod schema
@@ -412,24 +406,27 @@ async function main() {
         roomState.onGameStateUpdate(gameState)
 
         log(
-            'Forwarding validated game state from content-main-world to popup:',
+            'Forwarding validated game state from content-main-world to background:',
             result.data
         )
-        try {
-            sendMessage('game-state', result.data, 'popup')
-        } catch (error) {
-            log('Error sending game state to popup:', error)
-        }
+        sendMessage('game-state', result.data, 'background')
+    })
+
+    onMessage('query-room-state', async (message) => {
+        log('Received query-room-state request from background')
+        const roomData = await roomState.getRoomData()
+        sendMessage('room-state', roomData, 'background')
+    })
+
+    onMessage('query-game-state', async (message) => {
+        log('Received query-game-state request from background')
+        const gameState = await getGameState()
+        sendMessage('game-state', gameState, 'background')
     })
 
     onMessage('cell-update', async (message) => {
         log('Received cell update from content-main-world')
         roomState.onCellUpdate(message.data)
-    })
-
-    onMessage('query-game-state', async (message) => {
-        log('Received game state request from popup')
-        return await getGameState()
     })
 
     onMessage('join-room', async (message) => {

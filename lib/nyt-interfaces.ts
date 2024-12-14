@@ -45,7 +45,7 @@ export const NYTStoreStateSchema = z.object({
         data: z.object({
             meta: z.object({
                 copyright: z.string(),
-                editor: z.string(),
+                editor: z.string().optional(),
                 id: z.number(),
                 publicationDate: z.string(),
                 publishStream: z.string(),
@@ -105,10 +105,6 @@ export interface Cell {
     userId: string
     timestamp: number
     penciled: boolean
-}
-
-export interface RoomGuesses {
-    [cell: number]: Cell
 }
 
 export interface AutoJoinState {

@@ -25,78 +25,63 @@ import {
 } from '@/components/ui/tooltip'
 import { Info } from 'lucide-react'
 import { GetDataType, GetReturnType, ProtocolMap } from 'webext-bridge'
+import { browser } from 'wxt/browser'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
+}
+
+async function getTabId() {
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true })
+    if (tabs.length > 0) {
+        return tabs[0].id || null
+    }
+    return null
 }
 
 async function sendMessageToTab<K extends keyof ProtocolMap>(
     messageID: K,
     data: GetDataType<K, any>
 ): Promise<GetReturnType<K, any> | null> {
-    const tabs = await browser.tabs.query({ active: true, currentWindow: true })
-    if (tabs.length > 0) {
-        return await sendMessage(
-            messageID,
-            data,
-            `content-script@${tabs[0].id}`
-        )
+    const tabId = await getTabId()
+    if (tabId) {
+        return await sendMessage(messageID, data, `content-script@${tabId}`)
     }
     return null
 }
 
-function useRoomState() {
+function useRoomGameState() {
+    const [tabId, setTabId] = React.useState<number | null>(null)
+    const [gameState, setGameState] = React.useState<NYTStoreState | null>(null)
     const [roomState, setRoomState] = React.useState<RoomState | null>(null)
 
     React.useEffect(() => {
-        const unlisten = onMessage('room-state', (message) => {
-            log('Received room state update:', message)
-            setRoomState(message.data)
-        })
-
-        async function fetchInitialState() {
-            try {
-                const state = await sendMessageToTab('query-room-state', null)
-                if (state) {
-                    setRoomState(state)
-                }
-            } catch (err) {
-                console.error('Error fetching initial room state:', err)
-            }
-        }
-
-        fetchInitialState()
-        return unlisten
-    }, [setRoomState])
-
-    return roomState
-}
-
-function useGameState() {
-    const [gameState, setGameState] = React.useState<NYTStoreState | null>(null)
-
-    React.useEffect(() => {
-        const unlisten = onMessage('game-state', (message) => {
-            log('Received game state update:', message)
-            setGameState(message.data)
-        })
-
-        async function fetchInitialState() {
-            try {
-                const state = await sendMessageToTab('query-game-state', null)
-                if (state) {
-                    setGameState(state)
-                }
-            } catch (err) {
-                console.error('Error fetching initial game state:', err)
-            }
-        }
-
-        fetchInitialState()
-        return unlisten
+        getTabId().then(setTabId)
     }, [])
 
-    return gameState
+    React.useEffect(() => {
+        if (tabId === null) {
+            return
+        }
+
+        const port = browser.runtime.connect({
+            name: `nytogether-popup@${tabId}`,
+        })
+        port.onMessage.addListener((message: any) => {
+            if (message.type === 'game-state') {
+                setGameState(message.data)
+            }
+            if (message.type === 'room-state') {
+                setRoomState(message.data)
+            }
+        })
+
+        return () => {
+            port.disconnect()
+        }
+    }, [tabId])
+
+    return [gameState, roomState] as const
 }
 
 function useAutoJoinState() {
@@ -134,8 +119,7 @@ const roomFormSchema = z.object({
 })
 
 function Contents() {
-    const roomState = useRoomState()
-    const gameState = useGameState()
+    const [gameState, roomState] = useRoomGameState()
     const [, setAutoJoin] = useAutoJoinState()
 
     const form = useForm<z.infer<typeof roomFormSchema>>({
@@ -220,7 +204,10 @@ function Contents() {
                     </h3>
                     <div className="flex flex-col gap-1">
                         {Object.entries(members).map(([username, member]) => (
-                            <div className="flex items-center gap-2 text-sm text-left">
+                            <div
+                                className="flex items-center gap-2 text-sm text-left"
+                                key={username}
+                            >
                                 <span>{username}</span>
                                 {member.userId === currentUserId && (
                                     <span className="text-xs text-muted-foreground">

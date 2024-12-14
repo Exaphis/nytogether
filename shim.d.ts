@@ -1,12 +1,12 @@
 import { ProtocolWithReturn } from 'webext-bridge'
-import { RoomState } from './lib/nyt-interfaces'
+import { RoomState, NYTStoreState, NYTCell } from './lib/nyt-interfaces'
 
 declare module 'webext-bridge' {
     export interface ProtocolMap {
         'room-state': RoomState | null
-        'query-room-state': ProtocolWithReturn<null, RoomState | null>
+        'query-room-state': ProtocolWithReturn<null, void>
         'game-state': NYTStoreState | null
-        'query-game-state': ProtocolWithReturn<null, NYTStoreState | null>
+        'query-game-state': ProtocolWithReturn<null, void>
         'set-cell': { cellId: number; cell: NYTCell }
         'join-room': ProtocolWithReturn<
             { roomName: string; username: string },
