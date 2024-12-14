@@ -23,7 +23,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Info } from 'lucide-react'
+import { Info, AlertCircle } from 'lucide-react'
 import { GetDataType, GetReturnType, ProtocolMap } from 'webext-bridge'
 import { browser } from 'wxt/browser'
 
@@ -185,6 +185,33 @@ function Contents() {
         const members = roomState.members
         const currentUserId = roomState.userId
 
+        const sizeMismatchMessage =
+            gameState.cells.length !== Object.keys(roomState.guesses).length
+                ? `Board size mismatch: ${gameState.cells.length} vs ${
+                      Object.keys(roomState.guesses).length
+                  }`
+                : null
+
+        const mismatches: Array<{
+            cell: number
+            gameGuess: string
+            roomGuess: string
+        }> = []
+        for (let i = 0; i < gameState.cells.length; i++) {
+            const gameCell = gameState.cells[i]
+            const roomCell = roomState.guesses[i]
+            const gameGuess = gameCell?.guess || ''
+            const roomGuess = roomCell?.letter || ''
+
+            if (gameGuess !== roomGuess) {
+                mismatches.push({
+                    cell: i + 1,
+                    gameGuess,
+                    roomGuess,
+                })
+            }
+        }
+
         return (
             <div className="flex flex-col gap-4 items-start">
                 <div className="flex flex-col gap-2 items-start">
@@ -218,6 +245,49 @@ function Contents() {
                         ))}
                     </div>
                 </div>
+                {sizeMismatchMessage ||
+                    (mismatches.length > 0 && (
+                        <Alert variant="destructive">
+                            <AlertTitle>Game sync issue</AlertTitle>
+                            <AlertDescription>
+                                <div className="flex flex-col gap-1 text-sm">
+                                    {sizeMismatchMessage && (
+                                        <div className="text-left">
+                                            {sizeMismatchMessage}
+                                        </div>
+                                    )}
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr>
+                                                <th className="text-left">
+                                                    Cell
+                                                </th>
+                                                <th className="text-left">
+                                                    Your Guess
+                                                </th>
+                                                <th className="text-left">
+                                                    Room Guess
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {mismatches.map((mismatch, idx) => (
+                                                <tr key={idx}>
+                                                    <td>{mismatch.cell}</td>
+                                                    <td>
+                                                        '{mismatch.gameGuess}'
+                                                    </td>
+                                                    <td>
+                                                        '{mismatch.roomGuess}'
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </AlertDescription>
+                        </Alert>
+                    ))}
                 <Button onClick={leaveRoom}>Leave room</Button>
             </div>
         )

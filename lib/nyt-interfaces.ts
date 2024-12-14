@@ -75,6 +75,7 @@ export const NYTStoreStateSchema = z.object({
             nyTogetherDiffVersion: z.number().optional(),
         }),
     }),
+    nytogetherUpdating: z.boolean(),
 })
 
 // Type inference from the schemas
@@ -93,6 +94,7 @@ export interface RoomState {
     username: string
     userId: string
     members: Record<string, Member>
+    guesses: Record<number, Cell>
 }
 
 export interface NYTCell {

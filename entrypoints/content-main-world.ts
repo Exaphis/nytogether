@@ -47,10 +47,20 @@ class GameState {
         this.store = store
         const state = store.getState() as NYTStoreState
         this.prevCells = state.cells
-        sendMessage('game-state', store.getState(), 'content-script')
+        sendMessage(
+            'game-state',
+            { ...state, nytogetherUpdating: this.storeMutex.isLocked() },
+            'content-script'
+        )
 
         store.subscribe(() => {
             const state = store.getState()
+            sendMessage(
+                'game-state',
+                { ...state, nytogetherUpdating: this.storeMutex.isLocked() },
+                'content-script'
+            )
+
             const diffCells: Record<number, NYTCell> = {}
             for (const [cellId, cell] of Object.entries(state.cells) as [
                 string,
@@ -73,7 +83,6 @@ class GameState {
             if (Object.keys(diffCells).length > 0) {
                 sendMessage('cell-update', diffCells, 'content-script')
             }
-            sendMessage('game-state', state, 'content-script')
         })
 
         const handleKey = async (event: KeyboardEvent) => {
@@ -327,7 +336,10 @@ class GameState {
     }
 
     getState() {
-        return this.store.getState()
+        return {
+            ...this.store.getState(),
+            nytogetherUpdating: this.storeMutex.isLocked(),
+        }
     }
 }
 
@@ -429,9 +441,7 @@ function initialize() {
             error('globalState is not initialized')
             return null
         }
-        const state = globalState.getState()
-        state.gameData = (window as any).gameData
-        return state
+        return globalState.getState()
     })
 
     onMessage('set-cell', async (message) => {

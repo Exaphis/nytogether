@@ -25,6 +25,7 @@ import {
     RoomState as IRoomState,
     AutoJoinState,
     NYTCell,
+    Cell,
 } from '@/lib/nyt-interfaces'
 
 const log = (message: string, ...args: any[]) => {
@@ -54,6 +55,7 @@ class RoomState {
         disconnectListeners: any[]
         guessesRef: any
         memberRef: any
+        guesses: Record<number, Cell>
     } | null
     database: any
     onRoomStateChange: (state: RoomState) => void
@@ -174,6 +176,7 @@ class RoomState {
             username,
             memberRef,
             guessesRef,
+            guesses: (await get(guessesRef)).val(),
             disconnectListeners: [],
         }
 
@@ -231,6 +234,8 @@ class RoomState {
                     penciled: val.penciled,
                 }
                 await this.setCell(key, cell)
+                this.data!.guesses[key] = val
+                this.onRoomStateChange(this)
             })
         )
 
@@ -260,6 +265,11 @@ class RoomState {
     }
 
     async onGameStateUpdate(gameState: NYTStoreState) {
+        if (gameState.nytogetherUpdating) {
+            log('NYTogether is updating, skipping game state update')
+            return
+        }
+
         if (!this.receivedInitialGameState) {
             log('This is the first game state update! Checking autojoin')
             const item = storage.defineItem<AutoJoinState | null>(
@@ -334,6 +344,7 @@ class RoomState {
             username: this.data.username,
             userId: getAuth().currentUser!.uid,
             members,
+            guesses: this.data.guesses,
         }
     }
 }
