@@ -17,15 +17,14 @@ import {
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
 import { AutoJoinState, NYTStoreState, RoomState } from '@/lib/nyt-interfaces'
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { Info, AlertCircle } from 'lucide-react'
+import { Info } from 'lucide-react'
 import { GetDataType, GetReturnType, ProtocolMap } from 'webext-bridge'
 import { browser } from 'wxt/browser'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
 
 const log = (message: string, ...args: any[]) => {
     console.log(`[NYTogether/popup] ${message}`, ...args)
@@ -115,8 +114,51 @@ function useAutoJoinState() {
 const roomFormSchema = z.object({
     displayName: z.string().min(1, { message: 'Display name is required' }),
     roomName: z.string().min(1, { message: 'Room name is required' }),
-    autoJoin: z.boolean(), // TODO: implement
+    autoJoin: z.boolean(),
 })
+
+const AutoJoinPopover = () => {
+    const [open, setOpen] = React.useState(false)
+    const openTimeout = React.useRef<NodeJS.Timeout>()
+
+    const handleMouseEnter = () => {
+        openTimeout.current = setTimeout(() => {
+            setOpen(true)
+        }, 250)
+    }
+
+    const handleMouseLeave = () => {
+        if (openTimeout.current) {
+            clearTimeout(openTimeout.current)
+        }
+        setOpen(false)
+    }
+
+    React.useEffect(() => {
+        return () => {
+            if (openTimeout.current) {
+                clearTimeout(openTimeout.current)
+            }
+        }
+    }, [])
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+            >
+                <Info className="w-4 h-4 text-muted-foreground" />
+            </PopoverTrigger>
+            <PopoverContent className="max-w-[200px]">
+                <p>
+                    Whenever a crossword puzzle is opened, join the room
+                    automatically.
+                </p>
+            </PopoverContent>
+        </Popover>
+    )
+}
 
 function Contents() {
     const [gameState, roomState] = useRoomGameState()
@@ -337,19 +379,7 @@ function Contents() {
                             <FormLabel className="text-sm font-normal">
                                 Auto join
                             </FormLabel>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Info className="w-4 h-4" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="max-w-[200px]">
-                                        <p>
-                                            Whenever a crossword puzzle is
-                                            opened, join the room automatically.
-                                        </p>
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                            <AutoJoinPopover />
                         </FormItem>
                     )}
                 />
