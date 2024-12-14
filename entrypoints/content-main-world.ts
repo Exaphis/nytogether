@@ -220,6 +220,10 @@ class GameState {
             log('Cell already set:', cellId, cell)
             return
         }
+        if (storeState.cells[cellId].confirmed) {
+            log('Cell is already confirmed:', cellId, cell)
+            return
+        }
         log('Setting cell:', cellId, cell)
 
         this.storeMutex.runExclusive(async () => {

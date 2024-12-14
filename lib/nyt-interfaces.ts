@@ -13,14 +13,14 @@ export const NYTUserSchema = z.object({
 
 export const NYTCellSchema = z.object({
     answer: z.string().optional(),
-    checked: z.boolean(),
+    checked: z.boolean(), // checked but may or not be correct
     clues: z.array(z.number()),
-    confirmed: z.boolean(),
+    confirmed: z.boolean(), // confirmed correct, cannot be changed
     guess: z.string(),
     index: z.number(),
     modified: z.boolean(),
     penciled: z.boolean(),
-    revealed: z.boolean(),
+    revealed: z.boolean(), // revealed manually
     type: z.number(),
 })
 
