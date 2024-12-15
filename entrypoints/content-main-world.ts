@@ -47,6 +47,7 @@ class GameState {
         this.store = store
         const state = store.getState() as NYTStoreState
         this.prevCells = state.cells
+        log('Initial game state:', state)
         sendMessage(
             'game-state',
             { ...state, nytogetherUpdating: this.storeMutex.isLocked() },
@@ -55,6 +56,7 @@ class GameState {
 
         store.subscribe(() => {
             const state = store.getState()
+            log('Game state updated:', state)
             sendMessage(
                 'game-state',
                 { ...state, nytogetherUpdating: this.storeMutex.isLocked() },
@@ -78,7 +80,7 @@ class GameState {
                 log('Store updated but mutex is locked, skipping updates')
                 return
             }
-            log('Store changed', state, 'Different cells:', diffCells)
+            log('Different cells:', diffCells)
 
             if (Object.keys(diffCells).length > 0) {
                 sendMessage('cell-update', diffCells, 'content-script')

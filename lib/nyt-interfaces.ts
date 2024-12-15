@@ -75,6 +75,11 @@ export const NYTStoreStateSchema = z.object({
             nyTogetherDiffVersion: z.number().optional(),
         }),
     }),
+    transient: z.object({
+        doEscape: z.boolean(),
+        isReady: z.boolean(),
+        isSynced: z.boolean(),
+    }),
     nytogetherUpdating: z.boolean(),
 })
 
