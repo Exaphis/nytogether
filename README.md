@@ -1,8 +1,12 @@
 # NYTogether
 
+[<div align="center"><img src="https://i.imgur.com/r7gehrt.png" alt="Available in the Chrome Web Store" width="250"></div>](https://chromewebstore.google.com/detail/nytogether/jffmdpeogammpanehehiojklbepkefkn)
+
 NYTogether is a browser extension that lets you collaborate with your friends on [New York Times crossword puzzles](https://www.nytimes.com/crosswords) directly on the site.
 
 This lets you track your progress and streaks directly using the New York Times interface. If staying on the site is not necessary for you, [Down for a Cross](https://downforacross.com/) is likely a better option.
+
+![NYTogether](images/NYTogther%201.png)
 
 ## Usage
 
