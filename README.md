@@ -1,6 +1,6 @@
 # NYTogether
 
-[<div align="center"><img src="https://i.imgur.com/r7gehrt.png" alt="Available in the Chrome Web Store" width="250"></div>](https://chromewebstore.google.com/detail/nytogether/jffmdpeogammpanehehiojklbepkefkn)
+[<img src="https://i.imgur.com/r7gehrt.png" alt="Available in the Chrome Web Store" width="250">](https://chromewebstore.google.com/detail/nytogether/jffmdpeogammpanehehiojklbepkefkn)
 
 NYTogether is a browser extension that lets you collaborate with your friends on [New York Times crossword puzzles](https://www.nytimes.com/crosswords) directly on the site.
 
