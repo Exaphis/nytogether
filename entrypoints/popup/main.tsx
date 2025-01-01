@@ -163,6 +163,44 @@ const AutoJoinPopover = () => {
 function Contents() {
     const [gameState, roomState] = useRoomGameState()
     const [, setAutoJoin] = useAutoJoinState()
+    const [debouncedMismatches, setDebouncedMismatches] = React.useState<
+        Array<{
+            cell: number
+            gameGuess: string
+            roomGuess: string
+        }>
+    >([])
+
+    React.useEffect(() => {
+        if (!gameState || !roomState) return
+
+        const mismatches: Array<{
+            cell: number
+            gameGuess: string
+            roomGuess: string
+        }> = []
+
+        for (let i = 0; i < gameState.cells.length; i++) {
+            const gameCell = gameState.cells[i]
+            const roomCell = roomState.guesses[i]
+            const gameGuess = gameCell?.guess || ''
+            const roomGuess = roomCell?.letter || ''
+
+            if (gameGuess !== roomGuess) {
+                mismatches.push({
+                    cell: i + 1,
+                    gameGuess,
+                    roomGuess,
+                })
+            }
+        }
+
+        const timeoutId = setTimeout(() => {
+            setDebouncedMismatches(mismatches)
+        }, 250)
+
+        return () => clearTimeout(timeoutId)
+    }, [gameState, roomState])
 
     const form = useForm<z.infer<typeof roomFormSchema>>({
         resolver: zodResolver(roomFormSchema),
@@ -234,26 +272,6 @@ function Contents() {
                   }`
                 : null
 
-        const mismatches: Array<{
-            cell: number
-            gameGuess: string
-            roomGuess: string
-        }> = []
-        for (let i = 0; i < gameState.cells.length; i++) {
-            const gameCell = gameState.cells[i]
-            const roomCell = roomState.guesses[i]
-            const gameGuess = gameCell?.guess || ''
-            const roomGuess = roomCell?.letter || ''
-
-            if (gameGuess !== roomGuess) {
-                mismatches.push({
-                    cell: i + 1,
-                    gameGuess,
-                    roomGuess,
-                })
-            }
-        }
-
         return (
             <div className="flex flex-col gap-4 items-start">
                 <div className="flex flex-col gap-2 items-start">
@@ -288,7 +306,7 @@ function Contents() {
                     </div>
                 </div>
                 {sizeMismatchMessage ||
-                    (mismatches.length > 0 && (
+                    (debouncedMismatches.length > 0 && (
                         <Alert variant="destructive">
                             <AlertTitle>Game sync issue</AlertTitle>
                             <AlertDescription>
@@ -313,17 +331,23 @@ function Contents() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {mismatches.map((mismatch, idx) => (
-                                                <tr key={idx}>
-                                                    <td>{mismatch.cell}</td>
-                                                    <td>
-                                                        '{mismatch.gameGuess}'
-                                                    </td>
-                                                    <td>
-                                                        '{mismatch.roomGuess}'
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {debouncedMismatches.map(
+                                                (mismatch, idx) => (
+                                                    <tr key={idx}>
+                                                        <td>{mismatch.cell}</td>
+                                                        <td>
+                                                            '
+                                                            {mismatch.gameGuess}
+                                                            '
+                                                        </td>
+                                                        <td>
+                                                            '
+                                                            {mismatch.roomGuess}
+                                                            '
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
