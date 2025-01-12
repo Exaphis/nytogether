@@ -218,8 +218,18 @@ class GameState {
         return result
     }
 
+    /**
+     * Set the cell to the given guess.
+     *
+     * Uses the rebus input to set the cell as NYT's correctness check
+     * does not occur when the crossword/cell/GUESS action is dispatched.
+     * Instead, it runs as a separate step after a input is entered.
+     *
+     * @param cellId - The index of the cell to set.
+     * @param cell - The new cell state.
+     */
     public async setCell(cellId: number, cell: NYTCell) {
-        const storeState = this.store.getState()
+        const storeState = this.store.getState() as NYTStoreState
         if (storeState.status.isSolved) {
             log('Game is already solved!')
             return
@@ -237,7 +247,7 @@ class GameState {
         }
         log('Setting cell:', cellId, cell)
 
-        this.storeMutex.runExclusive(async () => {
+        await this.storeMutex.runExclusive(async () => {
             const prevSelection = storeState.selection.cell
             const inPencilMode = storeState.toolbar.inPencilMode
             const inRebusMode = storeState.toolbar.inRebusMode
@@ -332,7 +342,8 @@ class GameState {
             await this.waitForState(
                 (state) =>
                     state.cells[cellId].guess === cell.guess &&
-                    state.cells[cellId].penciled === cell.penciled
+                    state.cells[cellId].penciled === cell.penciled &&
+                    state.selection.cell === prevSelection
             )
         })
     }
