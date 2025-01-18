@@ -55,11 +55,16 @@ class GameState {
         )
 
         store.subscribe(() => {
+            // Skip all updates while the mutex is locked
+            // because those updates are coming from our own code
+            const nytogetherUpdating = this.storeMutex.isLocked()
             const state = store.getState()
             log('Game state updated:', state)
+            log('NYTogether updating:', nytogetherUpdating)
+
             sendMessage(
                 'game-state',
-                { ...state, nytogetherUpdating: this.storeMutex.isLocked() },
+                { ...state, nytogetherUpdating },
                 'content-script'
             )
 
@@ -76,7 +81,7 @@ class GameState {
 
             this.prevCells = state.cells
 
-            if (this.storeMutex.isLocked()) {
+            if (nytogetherUpdating) {
                 log('Store updated but mutex is locked, skipping updates')
                 return
             }
@@ -248,6 +253,7 @@ class GameState {
         log('Setting cell:', cellId, cell)
 
         await this.storeMutex.runExclusive(async () => {
+            log('Running exclusive, isLocked:', this.storeMutex.isLocked())
             const prevSelection = storeState.selection.cell
             const inPencilMode = storeState.toolbar.inPencilMode
             const inRebusMode = storeState.toolbar.inRebusMode
@@ -345,7 +351,11 @@ class GameState {
                     state.cells[cellId].penciled === cell.penciled &&
                     state.selection.cell === prevSelection
             )
+
+            log('Done waiting for state')
         })
+
+        log('Done setting cell:', cellId, cell)
     }
 
     getState() {
