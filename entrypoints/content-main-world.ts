@@ -37,11 +37,19 @@ function findReact(dom: any, traverseUp = 0) {
 }
 
 class GameState {
+    static #instance: GameState | null = null
     private store: any
     private prevCells: { [cell: number]: NYTCell } = {}
     private storeMutex: MutexInterface = new Mutex()
 
     constructor(store: any) {
+        if (GameState.#instance) {
+            throw new Error(
+                'GameState already initialized. Only one instance is allowed.'
+            )
+        }
+        GameState.#instance = this
+
         log('Constructing GameState with store:', store)
 
         this.store = store
@@ -409,6 +417,10 @@ function findStore(state: any): any | null {
 }
 
 function handleGameStore(elem: Element): boolean {
+    if (globalState) {
+        return true
+    }
+
     // Try to get the Redux store in the crossword page.
     log('Found element:', elem)
     const fiber = findReact(elem)
@@ -428,7 +440,7 @@ function handleGameStore(elem: Element): boolean {
 }
 
 function observeElement(selector: string, handler: (elem: Element) => boolean) {
-    function onMutation() {
+    function onMutation(records: MutationRecord[], observer: MutationObserver) {
         const element = document.querySelector(selector)
         if (element && handler(element)) {
             observer.disconnect()
@@ -442,7 +454,7 @@ function observeElement(selector: string, handler: (elem: Element) => boolean) {
         subtree: true,
     })
 
-    onMutation()
+    onMutation([], observer)
 }
 
 function initialize() {
