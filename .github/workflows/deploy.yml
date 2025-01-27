@@ -40,6 +40,8 @@ jobs:
     needs: Version
     if: ${{ needs.Version.outputs.version_changed == '1' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -67,7 +69,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: "v${{ needs.Version.outputs.version }}"
           name: "v${{ needs.Version.outputs.version }}"
