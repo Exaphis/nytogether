@@ -16,6 +16,8 @@ import {
     remove,
     get,
     onChildChanged,
+    update,
+    runTransaction,
 } from 'firebase/database'
 import { getAuth, signInAnonymously } from 'firebase/auth'
 import {
@@ -124,17 +126,19 @@ class RoomState {
             selection: gameState.selection.cell,
         })
 
-        // Create/update the xword room entry
-        const xwordRef = ref(this.database, `xwords/${roomName}`)
-        const xwordSnapshot = await get(xwordRef)
-
-        if (!xwordSnapshot.exists()) {
-            // New room
-            await set(xwordRef, {
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            })
-        }
+        // Create the xword room entry if necessary
+        runTransaction(
+            ref(this.database, `xwords/${roomName}`),
+            (currentData) => {
+                if (currentData === null) {
+                    return {
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    }
+                }
+                return currentData
+            }
+        )
 
         // Create/update the guesses entry
         const guessesRef = ref(this.database, `guesses/${roomName}`)
@@ -318,15 +322,16 @@ class RoomState {
 
         for (const [cellId, cell] of Object.entries(cells)) {
             log('Setting guess in database:', cellId, cell)
-            await set(
-                ref(this.database, `guesses/${this.data.roomName}/${cellId}`),
-                {
-                    letter: cell.guess,
-                    userId: currUid,
-                    timestamp: serverTimestamp(),
-                    penciled: cell.penciled,
-                }
-            )
+            const updates: any = {}
+            updates[`xwords/${this.data.roomName}/updatedAt`] =
+                serverTimestamp()
+            updates[`guesses/${this.data.roomName}/${cellId}`] = {
+                letter: cell.guess,
+                userId: currUid,
+                timestamp: serverTimestamp(),
+                penciled: cell.penciled,
+            }
+            await update(ref(this.database), updates)
         }
     }
 
