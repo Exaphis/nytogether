@@ -365,9 +365,9 @@ async function main() {
     try {
         const userCredential = await signInAnonymously(auth)
         log('Signed in anonymously with uid:', userCredential.user.uid)
-    } catch (error: any) {
-        const errorCode = error.code
-        const errorMessage = error.message
+    } catch (signinError: any) {
+        const errorCode = signinError.code
+        const errorMessage = signinError.message
         error('Error signing in:', errorCode, errorMessage)
     }
 
