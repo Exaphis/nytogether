@@ -4,7 +4,7 @@ import { defineConfig } from 'wxt'
 export default defineConfig({
     modules: ['@wxt-dev/module-react', '@wxt-dev/auto-icons'],
     extensionApi: 'chrome',
-    manifest: {
+    manifest: ({ manifestVersion }) => ({
         name: 'NYTogether',
         web_accessible_resources: [
             {
@@ -12,8 +12,13 @@ export default defineConfig({
                 matches: ['*://*.nytimes.com/*'],
             },
         ],
-        permissions: ['storage'],
-    },
+        permissions:
+            manifestVersion === 3
+                ? ['storage']
+                : ['storage', 'https://*.googleapis.com/*'],
+        host_permissions:
+            manifestVersion === 3 ? ['https://*.googleapis.com/*'] : [],
+    }),
     runner: {
         chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
     },
